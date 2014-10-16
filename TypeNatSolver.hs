@@ -377,6 +377,7 @@ solverSimplify proc viRef cts =
      let (our_eqs, our_rest) = partition isSimpleEq ours
      mapM_ (assume . snd) our_rest
      eithers <- mapM tryToSolve our_eqs
+     pop
      let (unsolved, solved) = partitionEithers eithers
      return (solved, unsolved ++ map fst our_rest ++ others)
   where
