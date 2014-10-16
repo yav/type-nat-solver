@@ -12,7 +12,7 @@ import OccName   ( occNameString )
 import Var       ( tyVarName, tyVarKind )
 import TcRnMonad ( TcPlugin(..), TcPluginResult(..), Xi
                  , Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
-                 , isGivenCt, mkNonCanonical
+                 , mkNonCanonical
                  , TcPluginM, tcPluginIO, tcPluginTrace
                  )
 
@@ -30,7 +30,6 @@ import FastString ( fsLit )
 import UniqFM     ( UniqFM, emptyUFM, plusUFM, unitUFM, eltsUFM )
 
 import Outputable
-import DynFlags
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
@@ -39,8 +38,8 @@ import           Data.IORef ( IORef, newIORef, readIORef
                             , atomicModifyIORef, atomicModifyIORef' )
 import           Data.Char (isSpace)
 import           System.Process (runInteractiveProcess, waitForProcess)
-import           System.IO (hPutStrLn, stderr, hGetLine, hGetContents, hFlush)
-import           Data.List (unfoldr, foldl',sortBy,groupBy,partition)
+import           System.IO (hPutStrLn, hGetLine, hGetContents, hFlush)
+import           Data.List (unfoldr, foldl', partition)
 import           Data.Maybe ( mapMaybe )
 import           Data.Either ( partitionEithers )
 import           Control.Concurrent(forkIO)
@@ -84,14 +83,14 @@ pluginSolve s@(S proc _) as bs =
      dbg $ ppCts bs
      res <- solverEntry s as bs
      case res of
-       TcPluginOk solved others new ->
+       TcPluginOk solved _others new ->
           do dbg $ text "-- Solved -----------------------------"
              dbg $ ppCts solved
              dbg $ text "-- New work ---------------------------"
              dbg $ ppCts new
              dbg $ text "---------------------------------------"
 
-       TcPluginContradiction bad good ->
+       TcPluginContradiction bad _good ->
          do dbg $ text "-- Contradiction ------------------------"
             dbg $ ppCts bad
             dbg $ text "-----------------------------------------"
