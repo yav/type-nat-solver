@@ -75,22 +75,22 @@ pluginStop :: S -> TcPluginM ()
 pluginStop (S proc _) = solverStop proc
 
 
-pluginSolve :: S -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
-pluginSolve s@(S proc _) as bs =
+pluginSolve :: S -> [Ct] -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
+pluginSolve s@(S proc _) as _ bs =
   do dbg $ text "-- Givens ------------------------"
      dbg $ ppCts as
      dbg $ text "-- Wanted ------------------------"
      dbg $ ppCts bs
      res <- solverEntry s as bs
      case res of
-       TcPluginOk solved _others new ->
+       TcPluginOk solved new ->
           do dbg $ text "-- Solved -----------------------------"
              dbg $ ppCts solved
              dbg $ text "-- New work ---------------------------"
              dbg $ ppCts new
              dbg $ text "---------------------------------------"
 
-       TcPluginContradiction bad _good ->
+       TcPluginContradiction bad ->
          do dbg $ text "-- Contradiction ------------------------"
             dbg $ ppCts bad
             dbg $ text "-----------------------------------------"
@@ -117,14 +117,14 @@ solverEntry (S proc viRef) givens wanteds =
 
      final_res <-
        case res of
-         TcPluginContradiction bad restWant ->
-            return (TcPluginContradiction bad (restWant ++ givens))
+         TcPluginContradiction bad ->
+            return (TcPluginContradiction bad)
 
-         TcPluginOk [] _wants new_cts ->
-            do (solved,unsolved) <- solverSimplify proc viRef wanteds
-               return (TcPluginOk solved (unsolved ++ givens) new_cts)
+         TcPluginOk [] new_cts ->
+            do (solved,_) <- solverSimplify proc viRef wanteds
+               return (TcPluginOk solved new_cts)
 
-         TcPluginOk _ _ _ -> panic "solveImprove returned Solved!"
+         TcPluginOk _ _ -> panic "solveImprove returned Solved!"
      solverPop proc viRef
      return final_res
 
@@ -198,7 +198,7 @@ solverImprove proc viRef withEv cts =
      let ours = [ (ct,e) | (ct,e) <- ours' ]
      case ours of
        [] -> do pop -- declarations
-                return (TcPluginOk [] cts [])
+                return (TcPluginOk [] [])
 
        (oneOfOurs,_) : _ ->
          do push -- assumptions
@@ -215,12 +215,12 @@ solverImprove proc viRef withEv cts =
                      case mbRes of
                        Nothing ->
                          fail "Bug: Failed to reporoduce contradiciton."
-                       Just (core,rest) ->
-                         return $ TcPluginContradiction core rest
+                       Just (core,_) ->
+                         return $ TcPluginContradiction core
 
                 -- We don't know: treat as consistent.
                 Unknown -> do pop -- assumptions
-                              return (TcPluginOk [] cts [])
+                              return (TcPluginOk [] [])
 
                 -- Consistent: try to compute derived work.
                 Sat ->
@@ -237,7 +237,7 @@ solverImprove proc viRef withEv cts =
                               ty <- sExprToType vi e
                               return $ mkNonCanonical
                                      $ mkNewFact loc withEv (mkTyVarTy tv, ty)
-                     return $ TcPluginOk [] cts $ mapMaybe toCt imps
+                     return $ TcPluginOk [] $ mapMaybe toCt imps
 
             pop -- declarations
             return res
