@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -ftc-plugin=TypeNatSolver #-}
+{-# OPTIONS_GHC -fplugin=TypeNatSolver #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}

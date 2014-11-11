@@ -1,4 +1,4 @@
-module TypeNatSolver (tcPlugin) where
+module TypeNatSolver (plugin) where
 
 import Type      ( Type, Kind, TyVar
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
@@ -13,8 +13,10 @@ import Var       ( tyVarName, tyVarKind )
 import TcRnMonad ( TcPlugin(..), TcPluginResult(..), Xi
                  , Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
                  , mkNonCanonical
-                 , TcPluginM, tcPluginIO, tcPluginTrace
+                 , TcPluginM
                  )
+import TcRnDriver ( tcPluginIO, tcPluginTrace )
+import Plugins    ( CommandLineOption, defaultPlugin, Plugin(..) )
 
 import TcTypeNats ( typeNatAddTyCon
                   , typeNatMulTyCon
@@ -47,17 +49,21 @@ import           Control.Monad(forever, msum)
 import qualified Control.Exception as X
 
 
+plugin :: Plugin
+plugin = defaultPlugin { tcPlugin = Just . thePlugin }
+
+
 data S = S SolverProcess (IORef VarInfo)
 
-tcPlugin :: TcPlugin
-tcPlugin = TcPlugin
+thePlugin :: [CommandLineOption] -> TcPlugin
+thePlugin opts = TcPlugin
   { tcPluginInit  = pluginInit
   , tcPluginSolve = pluginSolve
   , tcPluginStop  =  pluginStop
   }
 
-pluginInit :: [String] -> TcPluginM S
-pluginInit opts =
+pluginInit :: TcPluginM S
+pluginInit =
   do -- XXX
      let exe  = "cvc4"
          opts = [ "--incremental", "--lang=smtlib2" ]
