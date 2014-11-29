@@ -10,12 +10,11 @@ import CoAxiom   ( Role(..), CoAxiomRule(..) )
 import Name      ( nameOccName, nameUnique )
 import OccName   ( occNameString )
 import Var       ( tyVarName, tyVarKind )
+import TcPluginM ( TcPluginM, tcPluginIO, tcPluginTrace )
 import TcRnMonad ( TcPlugin(..), TcPluginResult(..), Xi
                  , Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
                  , mkNonCanonical
-                 , TcPluginM
                  )
-import TcRnDriver ( tcPluginIO, tcPluginTrace )
 import Plugins    ( CommandLineOption, defaultPlugin, Plugin(..) )
 
 import TcTypeNats ( typeNatAddTyCon
