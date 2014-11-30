@@ -11,8 +11,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     TypeNatSolver
-  build-depends:       base, containers, ghc, process
+  build-depends:       base, containers, ghc, simple-smt >= 0.3
   default-language:    Haskell2010
+  GHC-options:         -Wall -O2
 
 Test-Suite test-type-nat-solver
   type: exitcode-stdio-1.0

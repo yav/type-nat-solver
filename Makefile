@@ -1,5 +1,8 @@
 GHC=/home/diatchki/src/ghc/master/inplace/bin/ghc-stage2
 
-.PHONY: all
+.PHONY: all test
 all:
-	cabal install -w ${GHC} --enable-tests
+	cabal install -j1 -w ${GHC}
+
+.PHONY: test
+	cabal install -j1 -w ${GHC} --enable-tests
