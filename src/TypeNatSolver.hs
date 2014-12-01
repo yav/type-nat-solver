@@ -1,6 +1,6 @@
 module TypeNatSolver (plugin) where
 
-import Type      ( Type, Kind, TyVar
+import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
                  , getEqPredTys, mkTyConApp, mkNumLitTy, mkEqPred
                  , typeKind, classifyPredType, PredTree(..)
@@ -37,7 +37,8 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.IORef ( IORef, newIORef, readIORef, writeIORef
                             , modifyIORef', atomicModifyIORef' )
-import           Data.List ( partition )
+import           Data.List ( partition, find )
+import           Data.Maybe ( isNothing )
 import           Data.Either ( partitionEithers )
 import           Control.Monad(ap, liftM, zipWithM)
 import qualified Control.Applicative as A
@@ -106,8 +107,18 @@ pluginSolve s gs ds ws =
   ppCts cs = vcat (map ppr cs)
 
 
+ctNotMember :: [PredType] -> Ct -> Bool
+ctNotMember tys ct = isNothing (find (eqType ty) tys)
+  where ty = ctPred ct
+
 solverEntry :: S -> [Ct] -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
-solverEntry s givens _ [] = solverImprove s True givens
+solverEntry s givens _ [] =
+  do res <- solverImprove s True givens
+     case res of
+       TcPluginOk [] new ->
+         do let known = map ctPred givens
+            return (TcPluginOk [] (filter (ctNotMember known) new))
+       x -> return x
 
 solverEntry s givens derived wanteds =
   solverPrepare s givens $ \_others ourGivens ->
@@ -122,7 +133,8 @@ solverEntry s givens derived wanteds =
 
        TcPluginOk [] new_cts ->
           do (solved,_) <- solverSimplify s wanteds
-             return (TcPluginOk solved new_cts)
+             let known = map ctPred derived
+             return (TcPluginOk solved (filter (ctNotMember known) new_cts))
 
        TcPluginOk _ _ -> panic "solveImprove returned Solved!"
 
