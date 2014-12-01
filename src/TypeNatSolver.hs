@@ -44,6 +44,7 @@ import qualified Control.Applicative as A
 import           SimpleSMT (SExpr,Value(..),Result(..))
 import qualified SimpleSMT as SMT
 
+
 plugin :: Plugin
 plugin = defaultPlugin { tcPlugin = Just . thePlugin }
 
@@ -59,13 +60,16 @@ pluginInit opts = tcPluginIO $
   do -- XXX: Use `opts`
      let exe  = "cvc4"
          opts = [ "--incremental", "--lang=smtlib2" ]
-     proc  <- SMT.newSolver exe opts Nothing
+     doLog <- SMT.newLogger
+     proc  <- SMT.newSolver exe opts (Just doLog)
 
      SMT.setLogic proc "QF_LIA"
 
      viRef  <- newIORef emptyVarInfo
      impRef <- newIORef newImportS
-     return S { solver = proc, declared = viRef, importS = impRef }
+     return S { solver = proc, declared = viRef, importS = impRef
+              , dbgLogger = doLog
+              }
 
 pluginStop :: S -> TcPluginM ()
 pluginStop s = do _ <- tcPluginIO (SMT.stop (solver s))
@@ -73,6 +77,7 @@ pluginStop s = do _ <- tcPluginIO (SMT.stop (solver s))
 
 pluginSolve :: S -> [Ct] -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
 pluginSolve s gs ds ws =
+  solverDebugFun s "pluginSolve" $
   do resetImportS s
      dbg $ text "-- Givens ------------------------"
      dbg $ ppCts gs
@@ -132,7 +137,8 @@ solverEntry s givens derived wanteds =
 solverPrepare :: S -> [Ct]
               -> ([Ct] -> [(Ct,SExpr)] -> TcPluginM a)
               -> TcPluginM a
-solverPrepare s cts0 k = do solverPush s
+solverPrepare s cts0 k = solverDebugFun s "solverPrepare" $
+                         do solverPush s
                             a <- go [] [] cts0
                             solverPop s
                             return a
@@ -158,6 +164,7 @@ solverImprove :: S
               -> [Ct]
               -> TcPluginM TcPluginResult
 solverImprove s withEv cts =
+  solverDebugFun s "solverImprove" $
   solverPrepare s cts $ \others ours ->
   case ours of
     [] -> return (TcPluginOk [] [])
@@ -214,38 +221,33 @@ solverFindContraidction ::
                    , [Ct]      -- All other constraints (both others and ours)
                    ))
 solverFindContraidction s others ours =
-  do push  -- scope for `needed`
+  do solverPush s -- scope for `needed`
      minimize others [] ours
 
   where
-  check   = solverCheck  s
-  push    = solverPush   s
-  pop     = solverPop    s
-  assume  = solverAssume s
-
   minimize notNeeded needed maybeNeeded =
-    do res <- check
+    do res <- solverCheck s
        case res of
-         Unsat -> do pop  -- remove `needed` scope.
+         Unsat -> do solverPop s -- remove `needed` scope.
                      return $ Just (needed, map fst maybeNeeded ++ notNeeded)
-         _     -> do push -- scope for `maybeNeeded`
+         _     -> do solverPush s -- scope for `maybeNeeded`
                      search notNeeded needed [] maybeNeeded
 
   search _ needed _ [] =
-    do pop  -- Remove `maybeNeeded`
-       pop  -- Remove `needed`
+    do solverPop s -- Remove `maybeNeeded`
+       solverPop s -- Remove `needed`
        case needed of
          [] -> return Nothing    -- No definite contradictions
          _  -> fail "Bug: we found a contradiction, and then lost it!"
 
   search notNeeded needed maybeNeeded ((ct,e) : more) =
-    do assume e    -- Add to `maybeNeeded`
-       res <- check
+    do solverAssume s e    -- Add to `maybeNeeded`
+       res <- solverCheck s
        case res of
 
          Unsat -> -- We found a contradiction using `needed` and `maybeNeeded`.
-           do pop       -- remove `maybeNedded`
-              assume e  -- add to `needed`
+           do solverPop s       -- remove `maybeNedded`
+              solverAssume s e  -- add to `needed`
               minimize (map fst more ++ notNeeded) (ct : needed) maybeNeeded
 
          -- No contradiction, keep searching.
@@ -573,9 +575,11 @@ mkNewFact newLoc withEv (t1,t2)
 
 
 -- | State of the plugin.
-data S = S { solver   :: SMT.Solver      -- ^ A connection to SMT solver
-           , declared :: IORef VarInfo   -- ^ Variables in scope
-           , importS  :: IORef ImportS   -- ^ Info about what's imported.
+data S = S { solver    :: SMT.Solver      -- ^ A connection to SMT solver
+           , declared  :: IORef VarInfo   -- ^ Variables in scope
+           , importS   :: IORef ImportS   -- ^ Info about what's imported.
+           , dbgLogger :: SMT.Logger
+             -- ^ Just used for debugging.
            }
 
 
@@ -671,6 +675,20 @@ solverProve s e =
        Unsat -> return True
        _     -> return False
 
+-- | Quick-and-dirty debugging.
+-- We prefer this to `trace` because trace is too verbose.
+-- This should not be used in "release" versions.
+solverDebugFun :: S -> String -> TcPluginM a -> TcPluginM a
+solverDebugFun s x m =
+  do tcPluginIO (do SMT.logMessage l x
+                    SMT.logTab l)
+     a <- m
+     tcPluginIO (do SMT.logUntab l
+                    SMT.logMessage l ("end of " ++ x))
+     return a
+  where
+  l = dbgLogger s
+
 
 --------------------------------------------------------------------------------
 -- Keeping Track of Variables.
@@ -711,6 +729,7 @@ endScope vi =
 
 -- | Is a variable declared?
 data VarStatus = Undeclared | Declared
+                 deriving Show
 
 -- | Update var info, and indicate if we need to declare the variable.
 declareVar :: String -> Type -> VarInfo -> (VarInfo, VarStatus)
