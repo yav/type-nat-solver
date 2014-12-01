@@ -5,4 +5,5 @@ all:
 	cabal install -j1 -w ${GHC}
 
 .PHONY: test
+test:
 	cabal install -j1 -w ${GHC} --enable-tests
