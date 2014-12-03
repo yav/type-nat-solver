@@ -425,9 +425,9 @@ solverImproveModel s model = go [] [] model
     , let b = x1 - a * y1
     , b >= 0 = do always <- solverProve s
                           $ SMT.eq (SMT.const x)
-                                   (STM.add
-                                      (SMT.mul (SMT.const a) (SMT.const y))
-                                      (SMT.const b))
+                                   (SMT.add
+                                      (SMT.mul (SMT.int a) (SMT.const y))
+                                      (SMT.int b))
 
                   if always
                     then do tx <- getVarType s x
