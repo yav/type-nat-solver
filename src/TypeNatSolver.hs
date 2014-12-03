@@ -56,12 +56,19 @@ thePlugin opts = TcPlugin
   , tcPluginStop  = pluginStop
   }
 
+verbose :: Bool
+verbose = False
+
 pluginInit :: [CommandLineOption] -> TcPluginM S
 pluginInit opts = tcPluginIO $
   do -- XXX: Use `opts`
      let exe  = "cvc4"
          opts = [ "--incremental", "--lang=smtlib2" ]
-     doLog <- SMT.newLogger
+     doLog <- if verbose
+                then SMT.newLogger
+                else return SMT.Logger { SMT.logTab = return ()
+                                       , SMT.logUntab = return ()
+                                       , SMT.logMessage = \_ -> return () }
      proc  <- SMT.newSolver exe opts (Just doLog)
 
      SMT.setLogic proc "QF_LIA"
@@ -762,16 +769,16 @@ solverProve' s e =
 -- We prefer this to `trace` because trace is too verbose.
 -- This should not be used in "release" versions.
 solverDebugFun :: S -> String -> TcPluginM a -> TcPluginM a
-solverDebugFun s x m =
-  do tcPluginIO (do SMT.logMessage l x
-                    SMT.logTab l)
-     a <- m
-     tcPluginIO (do SMT.logUntab l
-                    SMT.logMessage l ("end of " ++ x))
-     return a
+solverDebugFun s x m
+  | verbose = do tcPluginIO (do SMT.logMessage l x
+                                SMT.logTab l)
+                 a <- m
+                 tcPluginIO (do SMT.logUntab l
+                                SMT.logMessage l ("end of " ++ x))
+                 return a
+  | otherwise = m
   where
   l = dbgLogger s
-
 
 --------------------------------------------------------------------------------
 -- Keeping Track of Variables.
