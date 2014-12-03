@@ -423,15 +423,21 @@ solverImproveModel s model = go [] [] model
     , (a,0) <- divMod dx (y1 - y2)
     , a >= 0
     , let b = x1 - a * y1
-    , b >= 0 = do tx <- getVarType s x
-                  ty <- getVarType s y
-                  let ay | a == 1    = ty
-                         | otherwise = mkTyConApp typeNatMulTyCon
-                                                            [mkNumLitTy a, ty]
-                      rhs | b == 0   = ay
-                          | otherwise = mkTyConApp typeNatAddTyCon
-                                                            [ay, mkNumLitTy b ]
-                  return $ Just (tx, rhs)
+    , b >= 0 = do always <- solverProve s
+                          $ SMT.eq (SMT.const x)
+                                   (STM.add
+                                      (SMT.mul (SMT.const a) (SMT.const y))
+                                      (SMT.const b))
+
+                  if always
+                    then do tx <- getVarType s x
+                            ty <- getVarType s y
+                            let ay  | a == 1     = ty
+                                    | otherwise  = mul (mkNumLitTy a) ty
+                                rhs | b == 0    = ay
+                                    | otherwise = add ay (mkNumLitTy b)
+                            return (Just (tx, rhs))
+                    else return Nothing
 
   mustBeL m1 x x1 x2 (_ : more) = mustBeL m1 x x1 x2 more
 
@@ -442,6 +448,8 @@ solverImproveModel s model = go [] [] model
                     Bool b         -> bool b
                     _ -> panic ("Unexpecetd value in model: " ++ show val)
 
+  add x y = mkTyConApp typeNatAddTyCon [x,y]
+  mul x y = mkTyConApp typeNatMulTyCon [x,y]
 
 
 --------------------------------------------------------------------------------
