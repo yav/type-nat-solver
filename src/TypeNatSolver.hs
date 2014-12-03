@@ -14,7 +14,7 @@ import Var       ( tyVarName )
 import TcPluginM ( TcPluginM, tcPluginIO, tcPluginTrace )
 import TcRnMonad ( TcPlugin(..), TcPluginResult(..)
                  , Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
-                 , mkNonCanonical
+                 , mkNonCanonical, isTouchableTcM, unsafeTcPluginTcM
                  )
 import Plugins    ( CommandLineOption, defaultPlugin, Plugin(..) )
 
@@ -37,7 +37,7 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.IORef ( IORef, newIORef, readIORef, writeIORef
                             , modifyIORef', atomicModifyIORef' )
-import           Data.List ( partition, find )
+import           Data.List ( find )
 import           Data.Maybe ( isNothing )
 import           Data.Either ( partitionEithers )
 import           Control.Monad(ap, liftM, zipWithM)
@@ -353,42 +353,87 @@ In particular, we look for facts of the form:
 Returns only the new facts.
 -}
 solverImproveModel :: S -> [(String,Value)] -> TcPluginM [(Type,Type)]
-solverImproveModel s model = constEq [] model
+solverImproveModel s model = go [] [] model
   where
+  go imps _ [] = return imps
+  go imps prevs ((x,v) : rest) =
+    do let noImp = go imps ((x,v) : prevs) rest
 
-  constEq imps [] = return imps
-  constEq imps ((x,v) : more) =
-    -- First we check if this is the only possible concrete value for `x`:
-    do proved <- solverProve s (SMT.eq (SMT.const x) (SMT.value v))
-       if proved
-         then do tx <- getVarType s x
-                 constEq ((tx, constToTy v) : imps) more
+       -- Try `x = K`
+       perhaps <- mustBeK x v
+       case perhaps of
+         Right yes -> go (yes : imps) prevs rest
+         Left m1 ->
+           -- Try `x = y`
+           do mb <- mustBeV x v rest
+              case mb of
+                Just yes -> go (yes : imps) prevs rest
+                Nothing
+                  | Int x1 <- v, Just (Int x2) <- lookup x m1 ->
+                    do touch <- isTouchableSMT s x
+                       if touch
+                         -- Try `x = A * y + B`
+                         then do mb1 <- mustBeL m1 x x1 x2 (prevs ++ rest)
+                                 case mb1 of
+                                   Just yes -> go (yes : imps) prevs rest
+                                   Nothing  -> noImp
+                         else noImp
+                  | otherwise -> noImp
 
-         -- Otherwise, we check if `x` must be equal to some other variable `y`
-         -- in all models.  We only need to consider variables that are equal
-         -- to `x` in this model (for the rest this model is a counter-example).
-         else let (candidates,others) = partition ((== v) . snd) more
-              in varEq x imps others candidates
+
+  -- Check if `x` must always have specific constant value
+  mustBeK x v =
+    do mbNot <- solverProve' s (SMT.eq (SMT.const x) (SMT.value v))
+       case mbNot of
+         -- proved
+         Nothing ->
+           do tx <- getVarType s x
+              return $ Right (tx, constToTy v)
+
+         -- not proved
+         Just m1 -> return $ Left m1
+
+  -- Check if `x` must always be equal to another variable.
+  mustBeV _ _ [] = return Nothing
+  mustBeV x v ((y,v1) : more)
+    | v == v1 = do always <- solverProve s (SMT.eq (SMT.const x) (SMT.const y))
+                   if always then do tx <- getVarType s x
+                                     ty <- getVarType s y
+                                     return $ Just (tx,ty)
+                             else mustBeV x v more
+    | otherwise = mustBeV x v more
 
 
-  varEq _ imps more []  = constEq imps more
-  varEq x imps more (def@(y,_) : ys) =
-    do -- Check if `x` and `y` must be the same in all models.
-       proved <- solverProve s (SMT.eq (SMT.const x) (SMT.const y))
-       if proved
-          then do tx <- getVarType s x
+  -- Check if `x = A * y + B`
+  -- x  = A * y  + B  (we are trying to make one of these)
+  -- x1 = A * y1 + B
+  -- x2 = A * y2 + B
+  -- (x1 - x2) = A * (y1 - y2)
+  mustBeL m1 x x1 x2 ((y,Int y1) : _)
+    | Just (Int y2) <- lookup y m1
+    , y1 /= y2
+    , let dx = x1 - x2
+    , (a,0) <- divMod dx (y1 - y2)
+    , a >= 0
+    , let b = x1 - a * y1
+    , b >= 0 = do tx <- getVarType s x
                   ty <- getVarType s y
-                  varEq x ((tx, ty) : imps)        more  ys
-          else    varEq x             imps  (def : more) ys
+                  let ay | a == 1    = ty
+                         | otherwise = mkTyConApp typeNatMulTyCon
+                                                            [mkNumLitTy a, ty]
+                      rhs | b == 0   = ay
+                          | otherwise = mkTyConApp typeNatAddTyCon
+                                                            [ay, mkNumLitTy b ]
+                  return $ Just (tx, rhs)
 
+  mustBeL m1 x x1 x2 (_ : more) = mustBeL m1 x x1 x2 more
 
+  mustBeL _ _ _ _ [] = return Nothing
 
   constToTy val = case val of
                     Int n | n >= 0 -> mkNumLitTy n
                     Bool b         -> bool b
                     _ -> panic ("Unexpecetd value in model: " ++ show val)
-
-
 
 
 
@@ -629,6 +674,20 @@ getVarType s x =
 getDeclared :: S -> TcPluginM [String]
 getDeclared s = inScope `fmap` getVarInfo s
 
+-- | Does this SMT variable correspond to a touchable variable?
+isTouchableSMT :: S -> String -> TcPluginM Bool
+isTouchableSMT s x =
+  do ty <- getVarType s x
+     case getTyVar_maybe ty of
+       Just tv -> isTouchableTcPluginM tv
+       Nothing -> return False
+
+
+-- | Is this variable touchable?
+-- XXX: This should probably be in GHC.
+isTouchableTcPluginM :: TyVar -> TcPluginM Bool
+isTouchableTcPluginM x = unsafeTcPluginTcM (isTouchableTcM x)
+
 
 
 -- | Checkpoint state.
@@ -686,6 +745,18 @@ solverProve s e =
      case res of
        Unsat -> return True
        _     -> return False
+
+solverProve' :: S -> SExpr -> TcPluginM (Maybe [(String,SMT.Value)])
+solverProve' s e =
+  do solverPush s
+     solverAssume s (SMT.not e)
+     res <- solverCheck s
+     mb  <- case res of
+              Unsat   -> return Nothing
+              Unknown -> return (Just [])
+              Sat     -> Just `fmap` solverGetModel s
+     solverPop s
+     return mb
 
 -- | Quick-and-dirty debugging.
 -- We prefer this to `trace` because trace is too verbose.

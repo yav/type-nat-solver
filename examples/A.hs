@@ -15,7 +15,6 @@ f = g
 g :: ((6 <=? x) ~ True) => Proxy x -> ()
 g _ = ()
 
---{-
 data Vec :: Nat -> * -> * where
   Nil :: Vec 0 a
   Cons :: a -> Vec n a -> Vec (n + 1) a
@@ -30,14 +29,13 @@ reverse = go Nil
   go :: Vec m a -> Vec n a -> Vec (m + n) a
   go xs Nil = xs
   go xs (Cons y ys) = go (Cons y xs) ys
---}
 
-{-
-f :: Proxy (2 + a) -> ()
-f = g
 
-g :: Proxy (1 + a) -> ()
-g _ = ()
--}
+f1 :: Proxy (2 + a) -> ()
+f1 = g1
+
+g1 :: Proxy (1 + a) -> ()
+g1 _ = ()
+
 
 
