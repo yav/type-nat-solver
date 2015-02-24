@@ -3,7 +3,7 @@ module TypeNatSolver (plugin) where
 import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
                  , getEqPredTys, mkTyConApp, mkNumLitTy, mkEqPred
-                 , typeKind, classifyPredType, PredTree(..)
+                 , typeKind, classifyPredType, PredTree(..), EqRel(..)
                  )
 import TyCon     ( TyCon )
 import TcEvidence ( EvTerm(..), mkTcAxiomRuleCo )
@@ -509,7 +509,7 @@ runImportM s (Imp m) = m s
 knownCt :: Ct -> ImportS -> Maybe (SExpr, ImportS, NewVarDecls)
 knownCt ct s =
   case classifyPredType (ctPred ct) of
-    EqPred t1 t2
+    EqPred NomEq t1 t2
       | Just ty <- knownKind (typeKind t1) ->
          Just $ runImportM s $
          do lhs <- knownTerm ty t1
