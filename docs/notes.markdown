@@ -1,8 +1,18 @@
-
-
-
+This paper describes a technique for integrating existing decision
+procedures with the type system of a programming language.
 
 Satisfiability Modulo Theories
+------------------------------
+
+SMT solvers, such as CVC4 [@cvc4], Yices [@yices], and Z3 [@z3], are
+widely used ...
+
+Form a user's perspective an SMT solver is a tool which is presented
+with a question, in the form of a conjunction of assertion, and it
+presents and answer 
+
+
+
 
 The Nelson Oppen Method of Combining Decision Procedures
 
@@ -33,7 +43,7 @@ XXX: Perhaps this part is too much for this paper...
 
 Integration with an External Decision Procedure
 
-  - Solving Constrinats
+  - Solving Constraints
 
 
 Improvement
