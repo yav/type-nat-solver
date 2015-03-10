@@ -169,10 +169,38 @@ are in the inert set.
 \section{Type Checker Plug-Ins}
 
 
+\section{Algorithm}
+
+\subsection{Idnetifying Constraints that Belong to the Theory}
+
+\subsection{Consistency and Improvement}
+
+\subsection{Simplifying Constraints}
 
 
 
+Given an implication constraint: $G\implies W$.
+\begin{enumerate}
+\item Identify constraints in the theory
+\item Name sub-terms that are outside the theory
+\item Assume $G$
+\item Check for satisfiability
+  \begin{itemize}
+  \item If unsat, implication is trivial, record error
+  \item If sat, use model for improvement
+  \end{itemize}
+\item ...
+\end{enumerate}
 
+
+\section{A Modular Type Checker}
+
+Relation between type-checker and
+the Nelson-Oppen method for combining
+decision procedures.
+
+
+\section {Conclusions}
 
 
 
