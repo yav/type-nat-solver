@@ -1,6 +1,7 @@
 \documentclass{sigplanconf}
 \usepackage{amsmath}
 \usepackage{fancyvrb}
+\usepackage{url}
 
 
 \begin{document}
@@ -37,6 +38,36 @@ the SMT solver.
 
 \section{Introduction}
 
+For a few years now, there has been a steady push in the Haskell
+community to explore and extend the type system, slowly approximating
+functionality available in dependently typed languages
+\cite{Eisenberg2012,Lindley2013,Eisenberg2014}.  The additional
+expressiveness enables Haskell programmers to express more
+invariants at compile time, which makes it easier to develop
+reliable software, and also makes Haskell a nice language
+for embedding domain specific languages \cite{ivory-experience}.
+The Haskell compiler is not just a translator, but it also
+serves as a tool that analyzes the program, and helps
+finds common mistakes early in the development cycle.
+
+Unfortunately, the extra expressiveness comes at a cost:
+Haskell's type system is by no means simple. Writing
+programs that make use of invariants encoded in the
+type system can be complex and time consuming.  For
+example, often one spends a lot of time proving simple theorems
+about arithmetic which, while important to convince the compiler
+that various invariants are preserved, contribute little to
+the clarity of the algorithm being implemented \cite{Lindley2013}.
+
+Given that in many cases the proofs constructed by the programmers
+tend to be fairly simple, we can't help but wonder if there might
+be a away to automate them away, thus gaining the benefits of
+static checking, but without cluttering the program with trivial
+facts about, say, arithmetic.  This paper presents a technique
+to help with this problem: we show one method of integrating
+an SMT solver with GHC's type checker.  While we present
+the technique in the context of Haskell and GHC, the technique
+should be applicable to other programming languages and compilers too.
 
 
 \section{Background}
@@ -44,8 +75,12 @@ the SMT solver.
 \subsection {SMT Solvers}
 
 SMT solvers, such as CVC4 \cite{cvc4}, Yices \cite{yices}, and Z3
-\cite{z3}, implement a wide collection of decision procedures,
-which have ...
+\cite{z3}, implement a wide collection of decision procedures that
+work together to solve a common problem.  They have proved a useful
+tool in both software and hardware verification.  In this Section,
+we present a very brief introduction to the core functionality
+of a typical SMT solver---readers familiar with the tools could
+skip this Section.
 
 From a user's perspective, the core functionality of an SMT solver is fairly
 simple: we may declare uninterpreted constants, assert formulas,
@@ -53,7 +88,7 @@ and check if the asserted formulas are {\em satisfiable}.  Checking
 for satisfiability simply means that we are asking the
 question: are there concrete values for the uninterpreted constants
 that make all asserted formulas true.  Here is an example, using
-the notation of the SMTLIB standard \cite{smtlib}
+the notation of the SMTLIB standard \cite{smtlib2}
 
 \begin{Verbatim}
 (declare-fun x () Int)
@@ -72,7 +107,7 @@ the uninterpreted constants to concrete values that make the
 asserted formulas true.
 
 It is common to use the same machinery for proving the validity of
-universally quantified formulas, by looking for counter-examples.
+universally quantified formulas by looking for counter-examples.
 For example, if we want to prove that $\forall x. (3 + x = 8) \implies x = 5$,
 then we can use the SMT solver to try to find some $x$ that contradicts
 the formula:
@@ -86,22 +121,52 @@ the formula:
 
 To invalidate an implication, we need to assume the premise, and try to
 invalidate the conclusion, which is why the second assertion in the
-example is negated. In this case the SMT solver will respond that the
+example is negated. In this case the SMT solver will tell us that the
 asserted formulas are not satisfiable, which means that there are no
-counter examples to the original formula, and so we can conclude that
-it must be valid.
+counter examples to the original formula and, therefore, it must be valid.
 
 
+\subsection{GHC's Constraint Solver}
 
-\section{}
+In this Section, we present a brief overview of some of the functionality
+in GHC's constraint solver.  The full details \cite{outsidein} are beyond
+the scope of this paper.
 
-  * Implication constraints
-  * Consistency of assumptions
-  * Consistency 
+\paragraph{Implication Constraints.}
+During type inference, GHC uses {\em implication constraints}, which do
+not appear in Haskell source code directly. An implication constraint is,
+roughly, of the form $G\implies W$, where $W$ is a collection
+of constraints that need to be discharged, and $G$ are assumptions that
+may be used while discharging $W$.  In the GHC source code, the constraints
+in $G$ are referred to as {\em given constraints}, while the ones in $W$ are
+known as {\em wanted constraints}.  The intuition behind an implication
+constraint is that $W$ contains the constraints that were collected
+while checking a program fragment, while the constraints in $G$ are local
+assumptions that are only available in this particular piece of code.
+For example, if we are checking the body of a case branch that matches
+on a GADT constructor, then $G$ would be assumptions that we
+obtain from the constructor, while $W$ would be constraints collected
+while analyzing the body of the branch.
+
+\paragraph{The Constraint Solver Pipeline.}
+The constraint solver has two central pieces of state: the {\em work queue},
+and the {\em inert set}.  The work queue contains constraints that need to be
+processed, while the inert set contains constraints that have already
+been processed.  Constraints are removed---one at a time---from the work queue,
+and {\em interacted} with the solver's state.  In the process of interaction
+we may solve a wanted constraint, possibly adding new constraints to the
+work queue, or notice that a constraint is impossible to solve and record
+an error, or---if nothing interesting happens---we add the constraint
+to the inert set.  It is also possible that during interaction a previously
+inert constraint may be reactivated in an "improved" form and re-inserted
+in the work queue.  A single invocation of the constraint solver keeps
+interacting constraints until the work queue is empty and all constraints
+are in the inert set.
+
+\paragraph{Derived Constraints.}
 
 
-  * Relation to Selson Oppen
-
+\section{Type Checker Plug-Ins}
 
 
 
@@ -112,16 +177,21 @@ it must be valid.
 
 
 \bibliographystyle{abbrvnat}
+\bibliography{refs}
 
-% The bibliography should be embedded for final submission.
 
-\begin{thebibliography}{}
-\softraggedright
 
-\bibitem[Smith et~al.(2009)Smith, Jones]{smith02}
-P. Q. Smith, and X. Y. Jones. ...reference text...
 
-\end{thebibliography}
+% 
+% % The bibliography should be embedded for final submission.
+% 
+% \begin{thebibliography}{}
+% \softraggedright
+% 
+% \bibitem[Smith et~al.(2009)Smith, Jones]{smith02}
+% P. Q. Smith, and X. Y. Jones. ...reference text...
+% 
+% \end{thebibliography}
 
 
 \end{document}
