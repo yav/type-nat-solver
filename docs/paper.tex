@@ -30,8 +30,7 @@ functionality provided by an SMT solver.  The technique was developed
 to add support for reasoning about type-level functions on natural
 numbers, and so our implementation mainly uses the theory of linear
 arithmetic.  The technique, however, is more general and makes it
-possible to experiment with other decision procedures supported by
-the SMT solver.
+possible to experiment with other external decision procedures.
 \end{abstract}
 
 \category{CR-number}{subcategory}{third-level}
@@ -69,19 +68,19 @@ an SMT solver with GHC's type checker.  While we present
 the technique in the context of Haskell and GHC, the technique
 should be applicable to other programming languages and compilers too.
 
+XXX: Structure of the paper
 
-\section{Background}
 
-\subsection {SMT Solvers}
+\section {SMT Solvers}
+
+This Section contains an introduction to the core functionality
+of a typical SMT solver, and may be skipped by readers who are already
+familiar with similar tools.
 
 SMT solvers, such as CVC4 \cite{cvc4}, Yices \cite{yices}, and Z3
 \cite{z3}, implement a wide collection of decision procedures that
-work together to solve a common problem.  They have proved a useful
-tool in both software and hardware verification.  In this Section,
-we present a very brief introduction to the core functionality
-of a typical SMT solver---readers familiar with the tools could
-skip this Section.
-
+work together to solve a common problem.  They have proved to be a useful
+tool in both software and hardware verification.
 From a user's perspective, the core functionality of an SMT solver is fairly
 simple: we may declare uninterpreted constants, assert formulas,
 and check if the asserted formulas are {\em satisfiable}.  Checking
@@ -97,20 +96,22 @@ the notation of the SMTLIB standard \cite{smtlib2}
 (check-sat)
 \end{Verbatim}
 
-The example declares a constant, $x$, asserts some formulas
+The example declares an integer constant, $x$, asserts some formulas---%
+using a prefix notation---%
 about it, and then asks the solver if the asserted formulas are
 satisfiable.  In this case, the answer is affirmative, as choosing
 $5$ for $x$ will make all formulas true.  Indeed, if an
 SMT solver reports that a set of formulas is satisfiable, typically
 it will also provide a {\em satisfying assignment}, which maps
 the uninterpreted constants to concrete values that make the
-asserted formulas true.
+formulas true.
 
-It is common to use the same machinery for proving the validity of
-universally quantified formulas by looking for counter-examples.
+The same machinery may also be used to prove the validity of
+a universally quantified formula. The idea is that we use the SMT solver
+to look for a {\em counter-example} to the formula, and if on such
+example exists, then we can conclude the formula is valid.
 For example, if we want to prove that $\forall x. (3 + x = 8) \implies x = 5$,
-then we can use the SMT solver to try to find some $x$ that contradicts
-the formula:
+then we can use the SMT solver to try to find some $x$ that contradicts it:
 
 \begin{Verbatim}
 (declare-fun x () Int)
@@ -120,19 +121,19 @@ the formula:
 \end{Verbatim}
 
 To invalidate an implication, we need to assume the premise, and try to
-invalidate the conclusion, which is why the second assertion in the
-example is negated. In this case the SMT solver will tell us that the
-asserted formulas are not satisfiable, which means that there are no
-counter examples to the original formula and, therefore, it must be valid.
+invalidate the conclusion, which is why the second assertion is negated.
+In this case the SMT solver tells us that the asserted formulas are not
+satisfiable, which means that there are no counter examples to the original
+formula and, therefore, it must be valid.
 
 
-\subsection{GHC's Constraint Solver}
+\section{GHC's Constraint Solver}
 
-In this Section, we present a brief overview of some of the functionality
-in GHC's constraint solver.  The full details \cite{outsidein} are beyond
-the scope of this paper.
+In this Section, we present relevant aspects of GHC's constraint solver.
+The full details of the algorithm \cite{outsidein} are beyond the scope
+of this paper.
 
-\paragraph{Implication Constraints.}
+\subsection{Implication Constraints}
 During type inference, GHC uses {\em implication constraints}, which do
 not appear in Haskell source code directly. An implication constraint is,
 roughly, of the form $G\implies W$, where $W$ is a collection
@@ -141,14 +142,31 @@ may be used while discharging $W$.  In the GHC source code, the constraints
 in $G$ are referred to as {\em given constraints}, while the ones in $W$ are
 known as {\em wanted constraints}.  The intuition behind an implication
 constraint is that $W$ contains the constraints that were collected
-while checking a program fragment, while the constraints in $G$ are local
-assumptions that are only available in this particular piece of code.
-For example, if we are checking the body of a case branch that matches
-on a GADT constructor, then $G$ would be assumptions that we
-obtain from the constructor, while $W$ would be constraints collected
-while analyzing the body of the branch.
+while checking a program fragment, while $G$ contains local assumptions
+that are available only in this particular piece of code.  For example,
+consider the following program fragment, which uses a GADT:
+\begin{Verbatim}
+data E :: * -> * where
+  EInt :: Int -> E Int
 
-\paragraph{The Constraint Solver Pipeline.}
+isZero :: E a -> Bool
+isZero (EInt x) = x == 0
+\end{Verbatim}
+When we check the definition of \verb"isZero", we end up with an implication
+constraint like this:
+\begin{Verbatim}
+(a ~ Int) => (Num a, Eq a)
+\end{Verbatim}
+Here, \verb"a" is the type of the pattern variable \verb"x", the wanted
+constraints arise from the use of \verb"0" and \verb"(==)" respectively,
+and the given constraint is obtain by pattern matching with \verb"EInt".
+
+
+\subsection{The Constraint Solver State}
+Implication constraints are solved by two calls to the constraint solver:
+the first call processes (i.e., assumes) the given constraints, and the
+second one processes the wanted constraints.
+
 The constraint solver has two central pieces of state: the {\em work queue},
 and the {\em inert set}.  The work queue contains constraints that need to be
 processed, while the inert set contains constraints that have already
@@ -158,12 +176,76 @@ we may solve a wanted constraint, possibly adding new constraints to the
 work queue, or notice that a constraint is impossible to solve and record
 an error, or---if nothing interesting happens---we add the constraint
 to the inert set.  It is also possible that during interaction a previously
-inert constraint may be reactivated in an "improved" form and re-inserted
+inert constraint may be reactivated in a rewritten form and re-inserted
 in the work queue.  A single invocation of the constraint solver keeps
 interacting constraints until the work queue is empty and all constraints
 are in the inert set.
 
-\paragraph{Derived Constraints.}
+\subsection{Type-Checker Plugins}
+Integrating an SMT solver with GHC's type-checker is not the only extension
+one might want to have---indeed, there is existing work that extends GHC
+with support for units of measure \cite{units-of-measure}.  Instead of
+having many ad-hoc extensions directly in GHC's constraint solver, we
+collaborated to define and implement and API for extending GHC's functionality
+via {\em type-checker plug-ins}.  At present, we are aware of two main
+users of this API---our work, and the work on units of measure, but we
+hope that this mechanism would make it easier for researcher to experiment
+with various extensions to GHC's constraint solver.
+
+An interesting question about type-checker plug-ins is: at what point in
+GHC's type checker should we hook them in? We considered a few alternatives:
+\begin{enumerate}
+\item Add a pass to the solver's pipeline, meaning that plug-ins have to
+work with constraints one at a time.
+\item Add a call to the plug-ins after the constraints solver has reached
+an inert state.
+\item Hand off implication constraints directly to the plug-ins,
+before invoking GHC's constraint solver.
+\end{enumerate}
+
+At the end, we decided on option 2.  Option 3 is the most general, as it
+would allow for the plug-in to completely override GHC's behavior.  However,
+we were more interested in {\em extending} GHC's capabilities rather than
+{\em replacing} them, so we opted against it.  Option 1, on the other hand,
+has the closest integration with GHC, but since plug-ins need to precess
+constraints one at a time, then they often ended up needing some state,
+which than had to be stored and managed somewhere, which became rather
+complicated.
+
+We chose option 2 as a nice middle ground, which allows us to look at
+all constraints at once, but plug-ins can assume that standard stuff
+the GHC knows about has already been eliminated. So, after the constraint
+solver reaches an inert state, it calls into the plug-ins, which examine
+the inert state and attempt to make progress.  If they do, then the
+constraint solver is restarted and process repeats.
+
+\subsection{Improvement and Derived Constraints}
+An improving substitution \cite{improvement} allows us to instantiate variables
+in the constraints under consideration with types, thus potentially enabling
+further constraint simplification.  Of course, we should only do so, as long
+as we preserve soundness and completeness.  In this context preserving
+soundness means that the new constraints should imply the original
+constraints (i.e., we didn't just drop some constraints),
+while completeness means that the original constraints imply the new ones
+(i.e., we didn't just make some arbitrary assumptions).
+
+In GHC, improvement happens by using {\em equality constraints} to rewrite
+constraints.  There are three sources of equality constraints:
+\begin{itemize}
+\item given equalities are computed from the given constraints
+\item wanted equalities arise
+\item derived equalities
+\end{itemize}
+
+
+
+
+
+
+
+\subsection{Improvement}
+
+
 
 
 \section{Type Checker Plug-Ins}
