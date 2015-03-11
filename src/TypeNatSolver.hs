@@ -16,6 +16,7 @@ import TcRnMonad ( TcPlugin(..), TcPluginResult(..)
                  , Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
                  , mkNonCanonical, isTouchableTcM, unsafeTcPluginTcM
                  )
+import TcRnTypes ( isDerivedCt )
 import Plugins    ( CommandLineOption, defaultPlugin, Plugin(..) )
 
 import TcTypeNats ( typeNatAddTyCon
@@ -37,7 +38,7 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.IORef ( IORef, newIORef, readIORef, writeIORef
                             , modifyIORef', atomicModifyIORef' )
-import           Data.List ( find )
+import           Data.List ( find, partition )
 import           Data.Maybe ( isNothing )
 import           Data.Either ( partitionEithers )
 import           Control.Monad(ap, liftM, zipWithM)
@@ -84,7 +85,7 @@ pluginStop s = do _ <- tcPluginIO (SMT.stop (solver s))
                   return ()
 
 pluginSolve :: S -> [Ct] -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
-pluginSolve s gs ds ws =
+pluginSolve s gs ds0 ws0 =
   solverDebugFun s "pluginSolve" $
   do resetImportS s
      dbg $ text "-- Givens ------------------------"
@@ -108,6 +109,10 @@ pluginSolve s gs ds ws =
      return res
 
   where
+  -- XXX: This is a temporary hack, because there appears to be a bug in GHC.
+  (ds1,ws) = partition isDerivedCt ws0
+  ds       = ds1 ++ ds0
+
   dbg = tcPluginTrace "NAT"
 
   ppCts [] = text "(empty)"
