@@ -77,6 +77,8 @@ This Section contains an introduction to the core functionality
 of a typical SMT solver, and may be skipped by readers who are already
 familiar with similar tools.
 
+\subsection{The Core Functionality}
+
 SMT solvers, such as CVC4 \cite{cvc4}, Yices \cite{yices}, and Z3
 \cite{z3}, implement a wide collection of decision procedures that
 work together to solve a common problem.  They have proved to be a useful
@@ -115,7 +117,7 @@ then we can use the SMT solver to try to find some $x$ that contradicts it:
 
 \begin{Verbatim}
 (declare-fun x () Int)
-(assert (= 3 x) 8)
+(assert (= (+ 3 x) 8))
 (assert (not (= x 5)))
 (check-sat)
 \end{Verbatim}
@@ -125,6 +127,43 @@ invalidate the conclusion, which is why the second assertion is negated.
 In this case the SMT solver tells us that the asserted formulas are not
 satisfiable, which means that there are no counter examples to the original
 formula and, therefore, it must be valid.
+
+\subsection{Incremental Solvers}
+
+Many SMT solvers have support for asserting formulas {\em incrementally}.
+This means that the solver performs a little work every time a new formula
+is asserted, rather than collecting all formulas and doing all the work
+in batch mode, once we ask about satisfiability.  Furthermore, incremental
+solvers have the ability to mark a particular solver state, and then revert
+back to it, using a stack discipline.  Here is an example:
+
+\begin{Verbatim}
+(declare-fun x () Int)
+(assert (= (+ 5 x) 3))
+(push 1)
+  (assert (>= x 0))
+  (check-sat)
+(pop 1)
+(check-sat)
+\end{Verbatim}
+
+This example asks the solver two questions, and the answer to the first
+one is \Verb"unsatisfiable", while the answer to the second one is
+\Verb"satisfiable".
+
+The \Verb"push" command instructs to solver to save its state, then
+proceed as normal.  When the solver encounters a \Verb"pop" command,
+it reverts to the last saved state.
+
+This functionality is extremely useful when we want to ask many questions
+that are largely the same, and differ only in a few assertions:
+we can perform the majority of the work once, and then use
+\Verb"push" and \Verb"pop" to just assert the differences.
+In our small example, the work for the first assertion shared in
+both calls to \Verb"check-sat".
+
+
+
 
 
 \section{GHC's Constraint Solver}
@@ -303,11 +342,11 @@ While, technically, this is not wrong, it is undesirable because the type
 error is clearly in the definition of \Verb"someFun", but we would delay
 reporting the error until the function is called.  So, it is better if
 we noticed that the wanted constraints are not satisfiable, are report
-and error immediately.
+an error immediately.
 
 The importance of the third bullet is that it enables collaboration between
-the SMT solver plug-in, and the rest of GHC (i.e., the main constraint solver,
-and also other plug-ins).  For example, consider an implication constraint
+the plug-in and the rest of GHC (i.e., the main constraint solver,
+and other plug-ins).  For example, consider an implication constraint
 of the form:
 \begin{Verbatim}
 forall x. (x + 5) ~ 8  =>  KnownNat x
@@ -316,9 +355,10 @@ In this case, we'd have to use the SMT solver to compute a new given
 equality, \Verb"x ~ 3".  This equality will then be used by GHC to
 rewrite the wanted constraint \Verb"KnownNat x" to \Verb"KnownNat 3",
 which in turn can be discharged by the custom solver for the \Verb"KnownNat"
-class.  This ``collaboration'' between different solvers is quite common
-in GHC.
-We discuss this observation further in Section~\ref{modular-typechecker}.
+class.  Such collaboration between different solvers is quite common.
+Interestingly, this looks a lot like the collaboration between decision
+procedures in an SMT solver!  We discuss this observation further
+in Section~\ref{modular-typechecker}.
 
 
 \subsection{Identifying Relevant Constraints}
