@@ -1,8 +1,12 @@
 \documentclass{sigplanconf}
 \usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
 \usepackage{fancyvrb}
 \usepackage{url}
 
+\newtheorem*{lemma}{Lemma}
+\newtheorem*{corollary}{Corollary}
 
 \begin{document}
 
@@ -26,11 +30,12 @@
 
 \begin{abstract}
 We present a technique for integrating GHC's type-checker with the
-functionality provided by an SMT solver.  The technique was developed
-to add support for reasoning about type-level functions on natural
-numbers, and so our implementation mainly uses the theory of linear
-arithmetic.  The technique, however, is more general and makes it
-possible to experiment with other external decision procedures.
+an SMT solver.  The technique was developed to add support for reasoning
+about type-level functions on natural numbers, and so our implementation
+uses the theory of linear arithmetic.  The technique, however, is more
+general and makes it possible to experiment with other external decision
+procedures, such as reasoning about type-level booleans, bit-vectors,
+or any other theory supported by SMT solvers.
 \end{abstract}
 
 \category{CR-number}{subcategory}{third-level}
@@ -72,6 +77,7 @@ XXX: Structure of the paper
 
 
 \section {SMT Solvers}
+\label{smt}
 
 This Section contains an introduction to the core functionality
 of a typical SMT solver, and may be skipped by readers who are already
@@ -149,9 +155,9 @@ back to it, using a stack discipline.  Here is an example:
 
 This example asks the solver two questions, and the answer to the first
 one is \Verb"unsatisfiable", while the answer to the second one is
-\Verb"satisfiable".
+\Verb"satisfiable" and the solution is \Verb"x = -2".
 
-The \Verb"push" command instructs to solver to save its state, then
+The \Verb"push" command instructs the solver to save its state, then
 proceed as normal.  When the solver encounters a \Verb"pop" command,
 it reverts to the last saved state.
 
@@ -159,7 +165,7 @@ This functionality is extremely useful when we want to ask many questions
 that are largely the same, and differ only in a few assertions:
 we can perform the majority of the work once, and then use
 \Verb"push" and \Verb"pop" to just assert the differences.
-In our small example, the work for the first assertion shared in
+In our small example, the work for the first assertion is shared in
 both calls to \Verb"check-sat".
 
 
@@ -212,49 +218,53 @@ and the {\em inert set}.  The work queue contains constraints that need to be
 processed, while the inert set contains constraints that have already
 been processed.  Constraints are removed---one at a time---from the work queue,
 and {\em interacted} with the solver's state.  In the process of interaction
-we may solve a wanted constraint, possibly adding new constraints to the
-work queue, or notice that a constraint is impossible to solve and record
-an error, or---if nothing interesting happens---we add the constraint
-to the inert set.  It is also possible that during interaction a previously
+we may solve constraint, generate new work, or report impossible constraints.
+If nothing interesting happens, then we relocate the constraint to the
+inert set.  It is also possible that during interaction a previously
 inert constraint may be reactivated in a rewritten form and re-inserted
 in the work queue.  A single invocation of the constraint solver keeps
 interacting constraints until the work queue is empty and all constraints
-are in the inert set.
+become inert.
 
 \subsection{Type-Checker Plugins}
-Integrating an SMT solver with GHC's type-checker is not the only extension
-one might want to have---indeed, there is existing work that extends GHC
-with support for units of measure \cite{units-of-measure}.  Instead of
-having many ad-hoc extensions directly in GHC's constraint solver, we
-collaborated to define and implement and API for extending GHC's functionality
-via {\em type-checker plug-ins}.  At present, we are aware of two main
-users of this API---our work, and the work on units of measure, but we
-hope that this mechanism would make it easier for researcher to experiment
-with various extensions to GHC's constraint solver.
+In this paper we describing a fairly general extension to the constraint
+solver, however one could always imagine others too. Indeed, there is
+existing work that extends GHC with support for units of measure
+\cite{units-of-measure}.  Instead of having many ad-hoc extensions directly
+in GHC's constraint solver, we collaborated to define and implement an
+API for extending GHC's functionality via {\em type-checker plug-ins}.
+At present, we are aware of two main
+users of this API---our work, and the work on units of measure. We
+hope, however, that this mechanism would be useful to other researchers too,
+as it makes it fairly easy to experiment with various extensions to
+GHC's constraint solver.
 
 An interesting question about type-checker plug-ins is: at what point in
-GHC's type checker should we hook them in? We considered a few alternatives:
+GHC's type checker should we invoke them?  The answer to this question
+affects their functionality, and the interface that a plug-in would have
+to implement.  We considered a few alternatives:
 \begin{enumerate}
-\item Add a pass to the solver's pipeline, meaning that plug-ins have to
-work with constraints one at a time.
+\item Add a pass to the solver's pipeline, meaning that plug-ins process
+constraints one at a time, the way GHC does.
 \item Add a call to the plug-ins after the constraints solver has reached
 an inert state.
 \item Hand off implication constraints directly to the plug-ins,
 before invoking GHC's constraint solver.
 \end{enumerate}
 
-At the end, we decided on option 2.  Option 3 is the most general, as it
+Option 1 has the closest integration with GHC, but since plug-ins need
+to process constraints one at a time, then they often ended up needing
+some state, which than has to be stored and managed somewhere,
+which became rather complicated.
+
+Option 3 is the most general, as it
 would allow for the plug-in to completely override GHC's behavior.  However,
 we were more interested in {\em extending} GHC's capabilities rather than
-{\em replacing} them, so we opted against it.  Option 1, on the other hand,
-has the closest integration with GHC, but since plug-ins need to precess
-constraints one at a time, then they often ended up needing some state,
-which than had to be stored and managed somewhere, which became rather
-complicated.
+{\em replacing} them, so we opted against it.
 
-We chose option 2 as a nice middle ground, which allows us to look at
-all constraints at once, but plug-ins can assume that standard stuff
-the GHC knows about has already been eliminated. So, after the constraint
+We chose option 2 as a nice middle ground. It allows a plug-in to
+work with all constraints at once, but it has the benefit that standard work
+done by GHC has already happened. So, after the constraint
 solver reaches an inert state, it calls into the plug-ins, which examine
 the inert state and attempt to make progress.  If they do, then the
 constraint solver is restarted and process repeats.
@@ -263,14 +273,14 @@ constraint solver is restarted and process repeats.
 An improving substitution \cite{improvement} allows us to instantiate variables
 in the constraints with types, potentially enabling further constraint
 simplification.  Of course, we should only do so, as long
-as we preserve soundness and completeness.  In this context preserving
-soundness means that the new constraints should imply the original
+as we preserve soundness and completeness.  In this context, preserving
+soundness means that the improved constraints should imply the original
 constraints (i.e., we didn't just drop some constraints),
-while completeness means that the original constraints imply the new ones
+while completeness means that the original constraints imply the improved ones
 (i.e., we didn't loose generality by making arbitrary assumptions).
 
-In GHC, improvement happens when we rewrite constraints using
-{\em equality constraints}. There are three sources of equality constraints:
+In GHC, improvement happens by rewriting with {\em equality constraints}.
+There are three sources of equality constraints:
 \begin{itemize}
 \item {\em given equalities} are implied by the given constraints,
 \item {\em wanted equalities} arise when solving wanted constraints,
@@ -305,17 +315,17 @@ as usual.
 \section{Integrating GHC with an SMT Solver}
 
 We describe the algorithm in the context of the theory of linear arithmetic
-over natural numbers, as having a concrete theory makes it easier to explain
+over the natural numbers, as having a concrete theory makes it easier to explain
 the process and illustrate it with examples.  In the next Section,
 we discuss how, and why, we might want to consider other theories also.
 
 \paragraph{Input.} Currently, the algorithm is implemented as a type-checker
 plug-in, and so the input to the algorithm is a collection of constraints
-that GHC has determine to be inert: GHC simplified everything as much
-as it could, improved using equalities, and basically cannot see anything
-else to do.  The inert constraints are presented to the plug-in in three
-collections, based on the constraints' provenance: one group contains
-the given constraints (i.e., assumption), one group contains derived
+that GHC has determine to be inert. This means that GHC simplified everything
+as much as it could, improved using equalities, and basically cannot see
+anything else to do.  The inert constraints are presented to the plug-in
+in three collections, based on the constraints' provenance: one group contains
+the given constraints (i.e., assumptions), one group contains derived
 constraints (see Section~\ref{GHC} for details), and one group contains
 the wanted constraints, which are the goals that need solving.
 
@@ -326,42 +336,50 @@ the wanted constraints, which are the goals that need solving.
   \item Compute new given and derived equalities to help solve constraints
         that are outside this decision procedure's scope.
 \end{itemize}
-The first bullet is clearly the main purpose of the algorithm, but the other
+The first task is the most obvious purpose of the algorithm, but the other
 two are quite important also.
 
-The second bullet is useful because it helps us avoid inferring type
-schemes with unsatisfiable constraints.  Suppose, for example, that
-we had just a single wanted constraint: \Verb"(x + 5) ~ 2".  Since we
-are working with natural numbers, this constraint has no solution, so
-we will not be able to solve it. As a result, we may end up inferring
-a type like this:
+Noticing inconsistencies avoids the inference of types with unsatisfiable
+constraints.  Consider, for example, a single wanted constraint,
+\Verb"(x + 5) ~ 2".  Since we are working with natural numbers,
+this constraint has no solution, so we cannot solve it.
+As a result, we may end up inferring a type like this:
 \begin{Verbatim}
 someFun :: forall x. (x + 5) ~ 2 => ...
 \end{Verbatim}
 While, technically, this is not wrong, it is undesirable because the type
 error is clearly in the definition of \Verb"someFun", but we would delay
-reporting the error until the function is called.  So, it is better if
-we noticed that the wanted constraints are not satisfiable, are report
-an error immediately.
+reporting the error until the function is called.  So, we'd like to
+notice constraints that are impossible to solve (i.e., they are logically
+equivalent to $\bot$), so that we can report type-errors that are closer
+to their true location.  Note that the source of a contradiction may
+be a combination of constraints, and not just a single one.  For example,
+the constraints \Verb"x >= 5" and \Verb"3 >= x" are inconsistent together,
+but have solutions when considered individually.
 
-The importance of the third bullet is that it enables collaboration between
-the plug-in and the rest of GHC (i.e., the main constraint solver,
+Computing new equations is also very important, as it enables collaboration
+between the plug-in and the rest of GHC (i.e., the main constraint solver,
 and other plug-ins).  For example, consider an implication constraint
 of the form:
 \begin{Verbatim}
 forall x. (x + 5) ~ 8  =>  KnownNat x
 \end{Verbatim}
-In this case, we'd have to use the SMT solver to compute a new given
-equality, \Verb"x ~ 3".  This equality will then be used by GHC to
-rewrite the wanted constraint \Verb"KnownNat x" to \Verb"KnownNat 3",
-which in turn can be discharged by the custom solver for the \Verb"KnownNat"
+In this case, we'd like to use the SMT solver to compute a new given
+equality, \Verb"x ~ 3".  Then, this equality can be used by GHC to
+rewrite the wanted constraint \Verb"KnownNat x" to \Verb"KnownNat 3"
+which, in turn, can be discharged by the custom solver for the \Verb"KnownNat"
 class.  Such collaboration between different solvers is quite common.
 Interestingly, this looks a lot like the collaboration between decision
 procedures in an SMT solver!  We discuss this observation further
 in Section~\ref{modular-typechecker}.
 
 
-\subsection{Identifying Relevant Constraints}
+% \subsection{Communicating With The Solver}
+% Our implementation uses the \Verb"simple-smt" library \cite{simple-smt}
+% to communicate with external SMT solvers.
+
+
+\subsection{The Language of Constraints}
 Our first task is to identify constraints that are relevant to our solver.
 In the current implementation, we consider equalities and inequalities
 between a subset of the types of kind \Verb"Nat".   The kind \Verb"Nat" is
@@ -379,42 +397,84 @@ type family (<=?) :: Nat -> Nat -> Bool
 These functions have no user-specified definitions: instead, we extended
 the core GHC simplifier with support for forward evaluation on concrete
 values, so it will evaluate concrete expressions, such as \Verb"2 + 3".
-This simple forward evaluation simplifies and cleans up the constraints,
-leaving the more complex reasoning involving variables to the algorithm
-being presently described.
+This simple forward evaluation cleans up the constraints, leaving the more
+complex reasoning---involving variables---to the algorithm being presently
+described.
 
 The declaration for \Verb"(<=?)" refers to the kind \Verb"Bool", which
 is simply the lifted \Verb"Bool" type.  As expected, it is inhabited by the
-empty types \Verb"True" and \Verb"False".
+empty types \Verb"True" and \Verb"False".   Having \Verb"(<=?)" be a function
+that returns a boolean is a little more convenient for programmers than having
+a constraint. In this form, a programmer may inspect the result of the
+inequality and make a decision based on it.  We can use a simple
+abbreviation to implement the corresponding inequality constraint:
+\begin{Verbatim}
+type (<=) a b  = (a <=? b) ~ True
+\end{Verbatim}
 
-So the language of interest to us it constraints formed with the two
-predicate symbols, \Verb"(~)" and \Verb"(<=?)", and types made out
-of variables, natural number constants, and the operations \Verb"(+)" and
-\Verb"(*)".  Furthermore, since we are restricted to working with {\em linear}
-arithmetic, we only consider multiplication by a constant.
+The constraints of interest to the algorithm are summarized by the following
+grammar:
+\begin{align*}
+c & = e \overset {\mathbb{N}} \sim e ~|~  e \overset {\mathbb{B}} \sim e \\
+e^\mathbb{N} & = \alpha ~|~ n ~|~ e + e ~|~ n * e \\
+e^\mathbb{B} & = \alpha ~|~ \mathrm{False} ~|~ \mathrm{True} ~|~ e \leq^? ~e \\
+n          & = 0 ~|~ 1 ~|~ \dots
+\end{align*}
 
-Of course, constraints may contain other symbols too.  For example,
+
+\subsection{Importing Constraints}
+
+Of course, general constraints may be more complex.  In particular,
 programmers are free to define their own type functions that return
 results of kind \Verb"Nat", so it is entirely possible to encounter
 constraints like \Verb"(F 3 + 4) ~ 7", where \Verb"F" is some programmer-defined
-type-family.
+type-family.  It is also possible to encounter non-linear constraints such
+as \Verb"x * y".
 
-The process of identifying relevant constraints proceeds as follows:
+The process of identifying relevant constraints is as follows:
 \begin{enumerate}
-\item Eliminate constraints that do not have a relevant top-level predicate
-symbol.  The relevant predicate symbols are \Verb"(<=?)", and \Verb"(~)" when
-used at kind \Verb"Nat".
-\item Import the parameters to the predicates guided by the kind:
-  \begin{itemize}
-  \item The two supported kinds are \Verb"Nat" and \Verb"Bool"
-  \item Currently, there are no interesting operations at kind \Verb"Bool"
-  \item If we encounter a type outside of our theory, we name it, and replace
-        it with a temporary variable.
-  \item We remember the name assignments, so that if the same ``foreign'' type
-        appears multiple times, it will get the same name.
-  \end{itemize}
+\item Set aside constraints that do not have a relevant top-level predicate
+symbol.
+\item Import the parameters to the predicates guided by the kind.
+\item If we encounter a type outside of our theory, then we name it and replace
+      it with a variable.
+\item We remember the names assigned to various types, so that we may reuse
+      the same name if a type appears multiple times.
 \end{enumerate}
 
+For example, the constraint \Verb"(F 3 + 4) ~ 7" will be imported as
+\Verb"(x + 4) ~ 7", and we will remember that \Verb"x" stands for \Verb"F 3".
+Later on, if we need to return results to the core GHC solver that mention
+\Verb"x", we replace it by the orignal expression, \Verb"F 3".
+
+The process of abstracting foreign constraints makes sense in our context,
+because it {\em generalizes} the constraint.  Consider a constraint $C(t)$, and
+its generalized form $C(x)$, where the sub-term $t$ is replaced by
+the variable $x$, which does not occur in $C(t)$.
+
+\begin{lemma}
+If $C(t)$ is satisfiable, then $C(x)$ is also satisfiable.
+\begin{proof} This follows because, by definition,
+$C(t) \iff C(x) \wedge x = t$. Therefore, if $\sigma$ is satisfying
+assignment for $C(t)$, then $\sigma \cup \{ x = \sigma t \}$ is satisfying
+assignment for $C(x)$.
+\end{proof}
+\end{lemma}
+
+\begin{corollary} If $C(x)$ is not satisfiable, then neither is $C(t)$.
+This is simply the contrapositive form of the previous Lemma.
+\end{corollary}
+
+Recall from Section~\ref{smt}, than to prove something, we make sure
+that there are no counter examples.  The Corollary states that if there
+are no counter examples to the abstracted constraint, than there will
+be no counter-examples to the original constraint as well, and so our
+proof is sound.  From a logical stand-point, naming away sub-terms
+amounts to trying to prove a more general fact, and so if we can complete
+the proof in the more general setting, then the proof will work for
+the special case of the original constraint.
+
+\paragraph{Aside.}
 The step of naming foreign types is similar to the flattening step performed
 by GHC's constraint solver, the main difference being that GHC names every
 call to a type-function, while we name only terms outside of the theory.
@@ -422,39 +482,356 @@ Still, this duplication of work is somewhat unsatisfactory, and it would
 be nice to extend GHC's flattening pass so that it can be reused by
 external plug-ins.
 
+\subsection{Checking for Consistency}
+
+Given some constraints in our theory, we would like to know if a
+solution exists.  If the constraints are inconsistent, then we can
+terminate the constraint solving problem early, and report an error,
+as discussed previously.
+
+To check for consistency, we assert all constraints, and ask the SMT
+solver if the result is satisfiable.  If this is not the case, then
+we report and error, otherwise we proceed with the algorithm.  Note that
+since we are working with generalized constraints, if we find an
+inconsistency, then we are sure that we've detected a problem.  However,
+if the SMT solver says that the constraints are satisfiable, then
+we now that this is the case from the point of view of our theory,
+however the constraints might still be unsatisfiable if one took a global
+view of the problem.  Consider, for example, \Verb"(F a + 4) ~ 7".
+This will get imported into our plug-in as \Verb"(x + 4) ~ 7", which is
+satisfiable by \Verb"x = 3".  Now, some other theory might know that
+\Verb"F a ~ 3" is not actually possible, but we won't detect this problem
+at this stage.
+
+\subsection{Minimizing Conflicts}
+If we detect a contradiction, then
+we know that there is no possible solution to the constraints.  However,
+often only a few of the constraints are involved in the actual problem,
+and it is much nicer if we report only them as the cause of the error,
+rather than getting a huge error involving all constraints.  If an SMT
+solver detects that a collection of assertions is inconsistent, it may
+be able to compute an {\em unsatisfiability core}, which is the sub-set
+of the assertions that lead to the conflict---exactly what we want!
+
+Unfortunately, not all SMT solvers support this feature and CVC4---%
+the SMT solver that we used during the development of this work---%
+does not have this ability.  To work around this, we implemented
+a custom minimization algorithm which work as follows:
+\begin{Verbatim}
+minimize s yes [] = return yes
+minimize s yes mb =
+  do solverPush s
+     search s yes [] mb
+
+search s yes mb (c : cs) =
+  do solverAssert s c
+     res <- solverCheck s
+     case res of
+       Unsat ->
+         do solverPop s
+            solverAssert s c
+            minimize s (c : yes) mb
+
+       _ -> search s yes (c : mb) cs
+\end{Verbatim}
+The algorithm keeps track of constraints that we are certain are part
+of the conflict in the variable \Verb"yes".  In addition, the algorithm
+has the invariant that the constraints in \Verb"yes" are always asserted
+in the solver's state, represented by the variable \Verb"s".
+Initially, \Verb"yes" starts off empty.
+
+We search for conflicts in the function \Verb"search", which asserts
+constraints one at a time, until a conflict is discovered.  The constraint
+that caused the conflict is added to the \Verb"yes" set, and then we
+examine the previously asserted constraint, to check if they are necessary
+for the conflict.
+
+The minimization process performs in $O(n^2)$ time, where $n$ is the
+number of constraints.  This has not been a big problem,
+as this minimization happens only when we report errors and, typically,
+the number of constraints is fairly low.
+
+
+\subsection{Improvement}
+
+If all constraint are consistent (i.e., have at least one solution),
+then we check for computed equality constraints.  As discussed previously,
+these help other parts of the constraint solver to make progress.
+
+It is convenient to compute the improvements right after the consistency
+check because at this point we already have all constraints asserted
+in the solver's state.  If all constraints in scope are given constraints,
+then we also generate given equalities, otherwise we generate derived
+equalities.
+
+The current implementation considers three forms of improvement,
+two of which are completely generic, and one of which is specific to
+linear arithmetic.
+
+\paragraph{Improve to Constant.} As we know that the constraints are
+consistent, we can ask the SMT solver for a satisfying assignment.
+This assignment contains one possible solution to constraints, but
+we should not emit an improving equality unless we are sure that
+this is the {\em the only} possible solution.  So, if $x = v$ is
+in the satisfying assumption, then we try to prove that the currently
+asserted constraints imply this fact.  We do this by temporarily asserting
+$x \neq v$, and checking for satisfiability.  If the resulting is unsatisfiable,
+then we know that $v$ is the only possible value for $x$,
+and we can emit the corresponding improving equation.
+\begin{Verbatim}
+solverProve s p =
+  do solverPush s
+     solverAssert s (SMT.not p)
+     res <- solverCheck s
+     solverPop s
+     return (res == Unsat)
+
+mustBeK s x v =
+  solverPorve s (eq (SMT.const x) (value v))
+\end{Verbatim}
+This process takes $O(n)$ time, where $n$ is the number of variables.
+Note that here we are making use of the incremental capabilities of the
+solver, and reusing all asserted constraints, just doing one
+additional \Verb"assert" per variable. To see the process in action,
+consider the constraint \Verb"(2 * x) ~ 16".  The steps that we'd perform
+are:
+\begin{Verbatim}
+(assert (= (* 2 x) 16))
+(check-sat)
+; SMT response: SAT
+(get-value (x))
+; SMT response: (8)
+(push 1)
+(assert (not (= x 8)))
+(check-sat)
+; SMT response: UNSAT
+(pop 1)
+; We generate a computed improvement: x ~ 8
+\end{Verbatim}
+
+\paragraph{Improve to Variable.}
+We may also use the satisfying assignment to look for improvements of
+the form $x = y$, where $x$ and $y$ are both variables.
+We look at the satisfying assignment, ignoring variables
+that were already improved to constants, and consider pairs of variables
+that happen to have the same value in this assignment. If $x$ and $y$
+are two such variables, then we try to prove that $x = y$ must hold
+under the current assumptions:
+\begin{Verbatim}
+mustEqual s x y =
+  solverProve s (eq (SMT.const x) (SMT.const y))
+\end{Verbatim}
+This process take $O(n^2)$ time, where $n$ is the number of variables,
+but we only need to call the solver for pairs of variables that have the same
+value---if they do not, then the current assignment provides a counter
+example indicating that the variables do not need to be equal in general.
+
+\paragraph{Improve Using a Linear Relation.}
+This improvement is a generalization of the previous example, that
+is specific to linear arithmetic.  The idea is to try to discover
+improving equations of the form $y = A * x + B$.  This type of
+improvement is a little different from the others, in that the right-hand
+side of the equation contains terms that are in the theory that we are solving.
+In general, such constraints are not very useful for the rest of GHC,
+as other parts of the constraint solver do not know about our theory
+(i.e., the functions \Verb"*" or \Verb"+") and, if we can prove it, then
+we must already know about this improvement!  This sort of improvement, is
+useful in one very common case, however:  if $y$ is a unification variable,
+then having this type of improving equation enables GHC to instantiate
+the variable, which leads to better type inference and simpler constraints,
+so we attempt this improvement only when the previous two have failed,
+and only for the unification variables in the constraints.
+
+We can compute the values for $A$ and $B$, if we have two examples for
+$x$ and two examples for $y$. Note that each call to the solver in
+the previous improvement steps gave rise to a potential additional set
+of examples, so we have plenty of points to work with: we take care to
+remember the values for the variables from two models.   It is also
+important that the $x$ values be different, but we can always find such
+examples: if we cannot find such an example, then $x$ would have only
+one possible value, and it would have been improved already.  It turns
+out that this sort of situations occur fairly frequently.  Consider,
+for example, the following program fragment:
+\begin{Verbatim}
+f :: Proxy (a + 1)
+f = Proxy
+
+g :: Proxy (b + 2)
+g = f
+\end{Verbatim}
+In this example, GHC needs to infer how to instantiate \Verb"f"'s type
+parameter, \Verb"a", and to do so, our plug-in needs to figure out that
+\Verb"a" may be instantiate to \Verb"b + 1".
 
 
 
+Once we compute candidate values for $A$ and $B$, we still need to
+invoke the solver to validate that the compute relation holds in all
+instances of the constraints, and not just the two that we happened to pick.
+
+Our current implementation only considers linear relations between pairs
+of variables as we were concerned about the performance penalty if
+we tried combinations of more variables: the math will work out, but
+the algorithm might become too slow to be practical, and alternative
+solutions based on rewriting might be more suitable.
 
 
+\paragraph{Custom Improving Rewrites.}
+All the improvements that we've defined so far work by {\em only} using
+the solver---note that we were just looking at satisfying assignments,
+and did not have any special rules about the shapes of the constraints.
+It also makes sense to extend the system with custom rewrite rules,
+which has the potential of speeding up performance, and also adding
+support for features that go beyond the solver's capabilities.
+We have experimented with various custom rules, but it is as yet
+unclear what constitutes a good set of rewrites.
 
 
-\subsection{Consistency and Improvement}
+\subsection{Solving Constraints}
 
-\subsection{Simplifying Constraints}
+The process of solving constraints is a straight-forward call the
+solver.  The only thing we need to do before solving constraints is
+to remove the assertions that were added during the consistency and
+improvement stages.  Recall that GHC solves implication constraints
+with two call to the constraint solver: the first one asserts
+the given constraints, while the second one actually solves goals.
 
+While we are asserting the assumption, we just check for consistency
+and improvement (to generate new given equalities), but we perform
+no solving, as there is nothing to solve.  During the solving stage,
+we mark the solver's state after we've asserted the givens,
+then we assert the new goals, check for consistency, and improvement,
+and then, before solving, revert back to the state where only
+the givens are asserted.
+\begin{Verbatim}
+solverSimplify s wanteds =
+  solverPrepare s wanteds $ \others our_wanteds ->
+  do res <- mapM tryToSolve our_wanteds
+     let (unsolved, solved) = partitionEithers res
+     return (solved, unsolved ++ others)
+  where
+  tryToSolve (ct,e) =
+    do proved <- solverProve s e
+       if proved
+         then return (Right ct)
+         else return (Left ct)
+\end{Verbatim}
+The call to \verb"solverPrepare" identifies the constraints that belong
+to our theory and translates them the SMTLIB language, where \Verb"others"
+are the constraints that are completely outside our theory, and
+\Verb"out_wanteds" are the constraints that we know about. Then,
+we invoke the solver for each goal, and see if we can prove it.
 
-
-Given an implication constraint: $G\implies W$.
-\begin{enumerate}
-\item Identify constraints in the theory
-\item Name sub-terms that are outside the theory
-\item Assume $G$
-\item Check for satisfiability
-  \begin{itemize}
-  \item If unsat, implication is trivial, record error
-  \item If sat, use model for improvement
-  \end{itemize}
-\item ...
-\end{enumerate}
+\paragraph{Evidence.} When we solve a constraint, GHC expects some
+evidence to be produced, explaining why the constraint holds
+\cite{fc-evidence}.  The same is expected when generating new given
+constraints.  While this evidence is not used for code generation,
+it is a very useful for sanity checking while working with the constraint
+solver.  Unfortunately, at present, our plug-in does not produce any
+meaningful evidence, beyond indicating that the fact was produce
+by using the SMT solver. In principle, SMT solvers should be able to
+produce a proof, when they have concluded that a set of assertions
+is unsatisfiable.  Unfortunately, this is not a commonly used feature,
+so many provers do not support it out of the box, and the format of the
+proofs is not standardized.
 
 
 \section{Other Theories}
 
-\paragraph{Integers.}
-\paragraph{Boolean.}  SAT solver in the type system
-\paragraph{Bit-vectors.}  Aribtrary modulo arithmeitc; finite sets of effects.
-\paragraph{Sets.}
+In the previous Section, we described the core working of a procedure
+for integrating an SMT solver with GHC's constraint solver.  While
+we concentrated on the theory of natural numbers and linear arithmetic,
+little of the algorithm is specific to that theory.
+
+It would be fairly easy to add support for other theories, simply
+by declaring additional ``uninterpreted'' kinds and type-functions
+in Haskell.  In the rest of this Section we explore some of these
+possibilities.
+
+\subsection{A Theory for Booleans}
+We already made use of the lifted \Verb"Bool" type, but so far Haskell
+does not support any interesting operations, beyond the \Verb"<=?" relation
+that we described.  Programmers are already experimenting with defining
+type functions. For example, with the current version of GHC we may
+define a function for conjunction of type-level booleans:
+\begin{Verbatim}
+type family And a b where
+  And False x = False
+  And True x  = x
+\end{Verbatim}
+
+Definitions like this work for simple evaluation, but do not support
+more sophisticated reasoning.  For example, if GHC encounters
+the constraint \Verb"And x y ~ True", it will not be able to conclude
+that the only way to solve this is if \Verb"x ~ True" and \Verb"y ~ True"
+both hold.  Using the approach outlined in the previous Section, we
+gain the full power of a SAT solver in the type system---SMT solvers
+can reason about booleans, indeed a SAT solver is usually an important
+part of the implementation of an SMT solver.
+
+A good starting point for the theory of booleans, would be the following
+signature:
+\begin{Verbatim}
+type family And (a :: Bool) (b :: Bool) :: Bool
+type family Or  (a :: Bool) (b :: Bool) :: Bool
+type family Not (a :: Bool)             :: Bool
+\end{Verbatim}
+
+
+\subsection{A Theory for Integers}
+
+So far, our work uses natural numbers, which are quite useful for
+keeping track of the sizes of data-structures such as arrays, vectors,
+lists, bit-vectors, etc.  The standard theory supported by the SMT solvers
+is actually linear arithmetic over the integers---in our implementation
+we have to do some extra work to assert that we are only interested
+in non-negative solutions.
+
+The main challenge for supporting both integers and natural numbers
+at the type level is not the technology for solving the equations, but
+the notation!  One possible signature for the theory of type-level
+integers is:
+\begin{Verbatim}
+type family ToInt  (a :: Nat) :: Int
+type family Negate (a :: Int) :: Int
+type family Add    (a :: Int) (b :: Int) :: Int
+type family Sub    (a :: Int) (b :: Int) :: Int
+type family Mul    (a :: Int) (b :: Int) :: Int
+\end{Verbatim}
+While this notation is somewhat verbose, at least it has the benefit
+of exposing the functionality to programmers, who may use a more suitable
+notation depending on their needs.  For example, if a program works
+mostly with integers, one could add the following declaration, to get
+the more usual mathematical notation:
+\begin{Verbatim}
+type (+) a b = Add a b
+\end{Verbatim}
+
+
+
+\subsection{A Theory of Bit-Vectors}
+SMT solvers also have good support for reasoning about fixed-length bit-vectors.
+Unlike the theory of linear arithmetic, the theory of bit-vectors
+supports arbitrary multiplication and division, as well as various bit-wise
+operations, similar to the operations available in hardware.
+
+\paragraph{Tracking Sizes.}
+If we are interested in keeping track of the sizes of data-structures
+in memory, using 64-bit bit-vectors is a reasonable compromise
+which provides more expressive reasoning than linear arithmetic,
+and accommodates virtually all data-structures that fit in a computer's memory.
+
+\paragraph{Finite Sets.}
+Another potential application for the theory of bit-vectors is
+to implement finite sets of integers at the type level.
+As is usual at the value level, each bit is used to indicating the presence
+or absence of an element in the set, and the bitwise \Verb"and"
+and \Verb"or" operations correspond to intersection and union.
+Such functionality would be useful in the implementation of various effect
+systems.
+
+
+
 
 
 \section{A Modular Constraint Solver}
