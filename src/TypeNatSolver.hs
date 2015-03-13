@@ -145,7 +145,7 @@ solverEntry s givens derived wanteds =
 
        TcPluginOk [] new_cts ->
           do (solved,_) <- solverSimplify s wanteds
-             let known = map ctPred (derived ++ wanteds)
+             let known = map ctPred (givens ++ derived ++ wanteds)
              return (TcPluginOk solved (filter (ctNotMember known) new_cts))
 
        TcPluginOk _ _ -> panic "solveImprove returned Solved!"
