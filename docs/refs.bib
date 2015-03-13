@@ -1,5 +1,5 @@
 @article {outsidein,
-author       = "Dimitrios Vytiniotis and Simon {Peyton Jones} and Tom Schrijvers and Martin Sulzmann",
+author       = "{Dimitrios Vytiniotis} and {Simon Peyton Jones} and {Tom Schrijvers} and {Martin Sulzmann}",
 journal      = "Journal of Functional Programming",
 month        = "September",
 publisher    = "Cambridge University Press",
@@ -9,7 +9,7 @@ year         = "2011",
 }
 
 @inproceedings {Eisenberg2014,
-author       = "Richard A. Eisenberg and Jan Stolarek",
+author       = "{Richard A. Eisenberg} and {Jan Stolarek}",
 title        = "Promoting Functions to Type Families in {Haskell}",
 booktitle    = "Proceedings of the 2014 ACM SIGPLAN Symposium on {Haskell}",
 year         = "2014",
@@ -18,7 +18,7 @@ url          = "http://www.cis.upenn.edu/~eir/papers/2014/promotion/promotion.pd
 }
 
 @inproceedings {Eisenberg2012,
-author      = "Richard A. Eisenberg and Stephanie Weirich",
+author      = "{Richard A. Eisenberg} and {Stephanie Weirich}",
 title       = "Dependently typed programming with singletons",
 booktitle   = "Proceedings of the 2012 ACM SIGPLAN Symposium on {Haskell}",
 address     = "Copenhagen, Denmark",
@@ -26,7 +26,7 @@ year        = "2012"
 }
 
 @inproceedings{Lindley2013,
- author       = "Sam Lindley and Conor McBride",
+ author       = "{Sam Lindley} and {Conor McBride}",
  title        = "Hasochism: The Pleasure and Pain of Dependently Typed {Haskell} Programming",
  booktitle    = "Proceedings of the 2013 ACM SIGPLAN Symposium on {Haskell}",
  year         = "2013",
@@ -35,7 +35,7 @@ year        = "2012"
 }
 
 @inproceedings{ivory-experience,
-  author      = "Patrick C. Hickey and Lee Pike and Trevor Elliott and James Bielman and John Launchbury",
+  author      = "{Patrick C. Hickey} and {Lee Pike} and {Trevor Elliott} and {James Bielman} and {John Launchbury}",
   title       = "Building Embedded Systems with Embedded {DSLs} (Experience Report)",
   booktitle   = "Proceedings of the 2014 ACM SIGPLAN Conference on Functional Programming",
   year        = "2014",
@@ -44,17 +44,23 @@ year        = "2012"
 }
 
 @techreport{smtlib2,
-  author      = "Clark Barrett and Aaron Stump and Cesare Tinelli",
+  author      = "{Clark Barrett} and {Aaron Stump} and {Cesare Tinelli}",
   title       = "The {SMT-LIB} Standard: Version 2.0",
   institution = "Department of Computer Science, The University of Iowa",
   year        = "2010",
   url         = "http://smtlib.cs.uiowa.edu/papers/smt-lib-reference-v2.0-r12.09.09.pdf"
 }
 
-@manual{cvc4,
-  title       = "{CVC4} User Manual",
-  year        = "2014",
-  url         = "http://cvc4.cs.nyu.edu/wiki/User_Manual"
+@inproceedings{cvc4,
+ author       = "{Clark Barrett} and {Christopher L. Conway} and
+                {Morgan Deters} and {Liana Hadarean} and
+                {Dejan Jovanovi\'{c}} and {Tim King} and
+                {Andrew Reynolds} and {Cesare Tinelli}",
+ title        = "{CVC4}",
+ booktitle    = "Proceedings of the 23rd International Conference on Computer Aided Verification",
+ year         = "2011",
+ address      = "Snowbird, Utah, USA",
+ url          = "http://dl.acm.org/citation.cfm?id=2032305.2032319",
 }
 
 @manual{yices,
@@ -65,7 +71,7 @@ year        = "2012"
 
 @inproceedings{z3,
   title       = "Z3: An efficient SMT solver",
-  author      = "Leonardo de Moura and Nikolaj Bjørner",
+  author      = "{Leonardo de Moura} and {Nikolaj Bjørner}",
   booktitle   = "Tools and Algorithms for the Construction and Analysis of Systems, 14th International Conference",
   year        = "2008",
   address     = "Budapest, Hungary",
@@ -74,14 +80,14 @@ year        = "2012"
 
 @unpublished{units-of-measure,
   title   = "A Typechecker Plugin for Units of Measure",
-  author  = "Adam Gundry",
+  author  = "{Adam Gundry}",
   year    = "2015",
   note    = "Submitted for publication."
 }
 
 @inproceedings{improvement,
   title     = "Simplifying and Improving Qualified Types",
-  author    = "Mark P. Jones",
+  author    = "{Mark P. Jones}",
   booktitle = "FPCA '95: Conference on Functional Programming Languages and Computer Architecture",
   year      = "1995",
   address   = "La Jolla, California, USA",
@@ -90,10 +96,47 @@ year        = "2012"
 
 @inproceedings{fc-evidence,
   title     = "Evidence normalization in System FC",
-  author    = "Dimitrios Vytiniotis and Simon {Peyton Jones}",
+  author    = "{Dimitrios Vytiniotis} and {Simon Peyton Jones}",
   booktitle = "24th International Conference on Rewriting Techniques and Applications",
   year    = "2013",
   address = "Eindhoven, Netherlands",
   url     = "http://research.microsoft.com/en-us/um/people/simonpj/papers/ext-f/fc-new-tyco.pdf"
+}
+
+@manual{simple-smt,
+  title   = "simple-smt: a {Haskell} library for working with SMT solvers",
+  author  = "{Iavor S. Diatchki}",
+  year    = "2015",
+  url     = "http://hackage.haskell.org/package/simple-smt"
+}
+
+@article{NelsonOppen,
+ author   = "{Greg Nelson} and {Derek C. Oppen}",
+ title    = "Simplification by Cooperating Decision Procedures",
+ journal  = "ACM Transactions on Programming Languages and Systems",
+ volume   = "1",
+ number   = "2",
+ month    = "October",
+ year     = "1979",
+ url      = "http://doi.acm.org/10.1145/357073.357079"
+}
+
+@inproceedings{cvc4-lin-arith,
+ author = "{Sergey Berezin} and {Vijay Ganesh} and {Daivd L. Dill}",
+ title  = "An Online Proof-producing Decision Procedure for Mixed-integer Linear Arithmetic",
+ booktitle = "Proceedings of the 9th International Conference on Tools and Algorithms for the Construction and Analysis of Systems",
+ year     = "2003",
+ address  = "Warsaw, Poland",
+ url      = "http://hci.stanford.edu/cstr/reports/2007-07.pdf"
+}
+
+@inproceedings{instance-chains,
+  author  = "{J. Garrett Morris} and {Mark P. Jones}",
+  title   = "Instance Chains: Type Class Programming Without Overlapping Instances",
+  booktitle = "Proceedings of the 15th ACM SIGPLAN International Conference on Functional Programming (ICFP '10)",
+
+  address = "Baltimore, Maryland, USA",
+  year    = "2010",
+  url     = "http://web.cecs.pdx.edu/~mpj/pubs/instancechains.pdf"
 }
 
