@@ -74,7 +74,104 @@ an SMT solver with GHC's type checker.  While we present
 the technique in the context of Haskell and GHC, the technique
 should be applicable to other programming languages and compilers too.
 
-The paper is organized as follows:  we start with a brief overview
+\subsection{Examples}
+
+We illustrate the utility of the functionality provided by our
+algorithm with a few short examples.  A very common example in
+this area is to define a family of singleton types that links
+type-level natural numbers to run-time constants that represent
+them:
+\begin{Verbatim}
+data UNat :: Nat -> * where
+  Zero :: UNat 0
+  Succ :: UNat n -> UNat (n + 1)
+\end{Verbatim}
+Here we've used a unary representation of the natural numbers,
+and each member of the family, \Verb"UNat n", has exactly one
+inhabitant, namely the natural number \Verb"n" represented in
+unary form.  Because we are using a GADT, we can pattern match
+on the constructors of the type and gradually learn additional
+information about the value being examined.
+
+Next, we define a function to add two such numbers:
+\begin{Verbatim}
+uAdd :: UNat m -> UNat n -> UNat (m + n)
+uAdd Zero x      = x
+uAdd (Succ x) y  = Succ (uAdd x y)
+\end{Verbatim}
+While this is a simple definition, and we are unlikely
+to have gotten it wrong, it is nice to know that GHC
+is checking our work!  Had we made a mistake, for
+example, by mis-typing the recursive call as \Verb"uAdd x x",
+we would get a type error:
+\begin{Verbatim}
+  Could not deduce (((n1 + n1) + 1) ~ (m + n))
+    from the context (m ~ (n1 + 1))
+\end{Verbatim}
+It is a small detail, but it is worth pointing out that
+GHC would have been just as happy had we defined the type
+of \Verb"Succ" like this:
+\begin{Verbatim}
+  Succ :: UNat n -> UNat (1 + n)
+\end{Verbatim}
+The difference is in the return type, in the one case it is
+\Verb"n + 1", and in the other it is \Verb"1 + n".  While
+to a human this looks like an insignificant difference,
+in many systems it is significantly easier to work
+with the one definition, but not the other.
+
+The unary natural numbers are handy if we are planning to
+do iteration.  However, if we are working on some sort of
+divide-and-conquer algorithm, we often need to split the
+input in two.  In this situation, a different family of
+singletons is more useful:
+\begin{Verbatim}
+data BNat :: Nat -> * where
+  Empty :: BNat 0
+  Even  :: (1 <= n) => BNat n -> BNat (2 * n)
+  Odd   :: BNat n -> BNat (2 * n + 1)
+\end{Verbatim}
+This is another singleton family, where the type \Verb"BNat n"
+is inhabited by a single member, \Verb"n".  However, in this
+case we learn different information by pattern examining
+the values:  an \Verb"Empty" value may not be split,
+an \Verb"Even" value may be split into two equal non-empty
+parts, while an \Verb"Odd" value may be split into two parts,
+and there will be one element left over.
+
+So, how do we add such numbers?  There are more cases to
+consider:
+\begin{Verbatim}
+bAdd :: BNat m -> BNat n -> BNat (m + n)
+bAdd Empty x            = x
+bAdd x Empty            = x
+bAdd (Even x) (Even y)  = Even (bAdd x y)
+bAdd (Even x) (Odd y)   = Odd  (bAdd x y)
+bAdd (Odd x)  (Even y)  = Odd  (bAdd x y)
+bAdd (Odd x)  (Odd  y)  = Even (bSucc (bAdd x y))
+\end{Verbatim}
+The correctness of this definition is much less obvious,
+and we did make a couple of mistakes before getting it
+right!  In the last case, we use the auxiliary function
+\Verb"bSucc", which increments a binary natural number
+by one:
+\begin{Verbatim}
+bSucc :: BNat m -> BNat (m + 1)
+bSucc Empty     = Odd Empty
+bSucc (Even x)  = Odd x
+bSucc (Odd x)   = Even (bSucc x)
+\end{Verbatim}
+
+While these examples are somewhat simplistic, we hope
+that they demonstrate the utility of the technology,
+and show that using the extension feels quite natural
+to a Haskell programmer.
+
+
+\subsection{Structure of the Paper}
+
+The rest of the paper is organized as follows:
+we start with a brief overview
 of SMT solvers form a user's perspective (Section~\ref{smt}); this
 section may be skipped by readers familiar with the tools.  Then,
 in Section~\ref{GHC}, we introduce the basic concepts of GHC's constraints

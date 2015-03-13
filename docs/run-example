@@ -1,0 +1,6 @@
+#!/bin/bash
+# GHCI="/home/diatchki/src/ghc-typeable.git/inplace/bin/ghc-stage2 --interactive"
+GHCI=ghci
+
+$GHCI Examples.hs
+
