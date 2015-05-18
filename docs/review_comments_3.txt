@@ -1,0 +1,62 @@
+                        ===== Review summary =====
+
+This paper describes how to integrate the GHC type cheker with an external
+SMT solver using a plugin mechanism, in order to add support for easy
+reasoning about numbers in the type system.
+
+It is nicely structured, a fairly easy read, and presents some interesting
+examples which are hard to express in the current Haskell type system (and
+even which are expressible but not always easy to prove in a full-spectrum
+dependently typed language such as Idris or Agda.)
+
+Given design constraints of Haskell (especially the phase distinction between
+types and values) it feels to me that this will be more useful in practice
+than adding more complex extensions to support aspects of dependent types.
+
+I'd like to recommend this paper for acceptance due to the utility of the
+algorithm and the extra expressive power it gives to Haskell programmers.
+I think there is more to say first, though, and hopefully this is doable
+by the second round of submissions. In particular:
+
+- There should be a discussion of the relationship with refinement types and
+Liquid Haskell.
+- Something about type checker plugins makes me a little uncomfortable,
+because it's not obvious who is responsible for the soundness of the plugin.
+How do plugins interact, and how do we know they are safe?
+- The system becomes much more interesting when there is support for
+theories other than Nat as briefly covered in Section 5. This section says
+'It would be fairly easy to add support for other theories, simply by declaring
+additional “uninterpreted” kinds and type-functions in Haskell.' If it
+would be fairly easy, why not do it in this paper? There are 3 pages still
+available, and it would be good to use this space to elaborate on this. As
+it is, it feels a bit like the work is unfinished.
+
+                      ===== Comments for author =====
+
+What is the relationship with Liquid Haskell and refinement types in
+general? I was surprised that this was not discussed, in particular the
+ICFP 2014 paper by Vazou et al.
+
+GHC has a small core language, but this system requires external checking.
+This is okay if we trust the external checker, of course, and the resulting
+system does indeed look useful in practice, but could you also comment
+on this trade-off? It seems that it will be a general problem when extending
+GHC with type checker plugins - how do we know that a plugin is sound and
+interacts properly with the rest of the type checker and other plugins?
+Is this up to the plugin author or is there a way of checking?
+
+Minor comments, typos, questions, etc:
+
+p1 The type error is somewhat mysterious at first glance. Can you explain
+what it means (especially, what is the ~ operator?)
+
+It's not made explicit in this section whether this is GHC now, or GHC after
+implementing your algorithm (it's fairly obvious but the wording sometimes
+makes it sound like it's GHC now.)
+
+p2 typo "if on such example exists"
+
+p7, other theories, is it possible to have lots of theories working together?
+
+"It would be fairly easy" - so you haven't done it yet? If it would be
+fairly easy, why not do it for this paper?

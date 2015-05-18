@@ -1,0 +1,15 @@
+                       ===== Review summary =====
+
+This paper describes the integration of an SMT solver with GHC's typechecker; on the way, the author gives a brief overview of SMT solving and a more depth description of GHC's typechecker plugin infrastructure.  The contributions are interesting, and have the potential to significantly impact GHC and its ecosystem.  However, defects in the presentation leave me unsure of the expressiveness or utility of the described integration, and so unable to fully support the paper in its present form.
+
+                      ===== Comments for author =====
+
+I find the examples almost entirely unmotivating: to what end would a programmer use uAdd or bAdd? Some example of, for instance, how BNat is useful in assuring the correctness (or other properties) of an actual divide-and-conquer algorithm would go a long way to addressing this complaint.
+
+Please clarify whether Section 3.3 is a contribution of this paper.  If it is not, I would appreciate the inclusion of some canonical reference for GHC type checker plugins, even if only to a wiki page or similar. I am confused by the discussion of derived constraints in Section 3.4.  To start, the paper says that "derived equalities...may not be used to rewrite...wanted constraints directly."  However, it suggests that derived constrains can be used to guide the instantiation of unification variables. For what other rewritings are equality constraints used?  The example of derived equalities then says that a derived constraint 'x ~ Int' could be used to write a wanted constraint 'Eq x' to 'Eq Int'.  This is unenlightening---it seems like 'Eq x' was rewritten to 'Eq Int' to me.
+
+Section 4.2, aside: some reference for what the "flattening step" is or what it does would help.
+
+Section 4.5, code sample: the type signature for 'search' claims to be for 'minimize'.
+
+The discussion of improvement using linear relations seems to introduce more questions than it answers.  The described technique seem to be dependent on getting the SMT solver to produce multiple distinct models---can the solver be relied upon to do so of its own accord?  Presumably adding inequalities to the SMT query could force the solver to find new models (if they exist)---is this done?  The given example seems to rely on this behavior working; how reliable is it in practice?

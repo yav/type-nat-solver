@@ -1,0 +1,286 @@
+                      ===== Review summary =====
+
+This paper describes a GHC type checker plugin which uses an external SMT solver
+(the paper mentions that the authors use CVC4) to resolve constraints between
+type level natural numbers. From a user's perspective, the extension is very
+nice. I experimented with the type checker plugin and defined a data type of
+vectors (much loved by dependently typed programmers):
+
+    data Vec :: Nat -> * -> * where
+      Nil  :: Vec 0 a
+      Cons :: a -> Vec n a -> Vec (n + 1) a
+
+and defined a number of operations on this vector: Functor instance,
+concatenation, reverse, reverse-with-accumulator, replicate, and even transpose:
+
+    transpose :: forall n m a. SingletonUNat n => Vec m (Vec n a) -> Vec n (Vec m a)
+    transpose Nil           = replicate Nil
+    transpose (Cons xs xss) = zipWith Cons xs rec
+      where
+        rec :: Vec n (Vec (m - 1) a)
+        rec = transpose xss
+
+and it all Just Works(TM) (the SingletonUNat type class gives us UNats for free;
+a standard trick when working with singletons in Haskell, although it's a bit
+difficult to define for GHC's TypeNats; but that's beyond the scope of the
+paper). Having the solver available makes all this development much much easier;
+just as one small example, the type annotation on `rec` in the definition of
+`transpose`, above, would not otherwise be possible. Very nice indeed!
+
+I do however have a number of concerns with the paper. First, the paper doesn't
+make it very easy to reproduce the results stated; there is no reference to the
+repository with the plugin (which, after some Googling, I am assuming is
+https://github.com/yav/type-nat-solver), and does not not tell us on which GHC
+language extensions the examples rely (for example in Section 1), or what
+version of the solver the authors used.
+
+Second, the paper does not really describe how the extension interacts with some
+other type system features:
+
+* Type inference: what kind of signatures are inferred when we don't manually
+  specify them? It's clear that we won't be getting principal types, but it
+  would still be nice to give the user something readable. I couldn't try this
+  out with the actual plugin because leaving out the type signature on, say,
+  either of
+
+     concat :: Vec a n -> Vec a m -> Vec a (n + m)
+     concat Nil         ys = ys
+     concat (Cons x xs) ys = Cons x (concat xs ys)
+
+     reverse :: Vec a n -> Vec a n
+     reverse Nil         = Nil
+     reverse (Cons x xs) = reverse xs `concat` singleton x
+
+  causes the whole thing to hang completely. I have no way of evaluating whether
+  this is a fundamental problem with the approach or just a simple bug.
+
+* Type holes: when we are programming with dependent types it's very convenient
+  to be able to leave holes in the program and have the compiler tell us what
+  type of term is expected in that hole. However, this does not currently seem
+  to interact with the plugin (much?). For example, if we take the example of
+  adding `BNat` numbers from the paper and leave a hole in one of the
+  definitions:
+
+    bAdd (Even x) (Even y) = _ (bAdd x y)
+
+  we get
+
+    Found hole ‘_’ with type: BNat (n1 + n2) -> BNat (m + n)
+    Where: ‘m’ is a rigid type variable bound by
+               the type signature for bAdd :: BNat m -> BNat n -> BNat (m + n)
+               at MyTest.hs:25:9
+           ‘n’ is a rigid type variable bound by
+               the type signature for bAdd :: BNat m -> BNat n -> BNat (m + n)
+               at MyTest.hs:25:9
+           ‘n1’ is a rigid type variable bound by
+                a pattern with constructor
+                  Even :: forall (n :: Nat). (1 <= n) => BNat n -> BNat (2 * n),
+                in an equation for ‘bAdd’
+                at MyTest.hs:29:7
+           ‘n2’ is a rigid type variable bound by
+                a pattern with constructor
+                  Even :: forall (n :: Nat). (1 <= n) => BNat n -> BNat (2 * n),
+                in an equation for ‘bAdd’
+                at MyTest.hs:29:16
+    Relevant bindings include
+      y :: BNat n2 (bound at MyTest.hs:29:21)
+      x :: BNat n1 (bound at MyTest.hs:29:12)
+      bAdd :: BNat m -> BNat n -> BNat (m + n) (bound at MyTest.hs:26:1)
+    In the expression: _
+    In the expression: _ (bAdd x y)
+    In an equation for ‘bAdd’: bAdd (Even x) (Even y) = _ (bAdd x y)
+
+  which is no help whatsoever; in particular, it doesn't tell us anything about
+  the relationship between n1 and n2, and m and n.
+
+* Inaccessible patterns: often with dependent types we get that certain patterns
+  are inaccessible. However, attempting to define
+
+    head :: Vec a (n + 1) -> a
+    head (Cons x _) = x
+
+  again causes the hole thing to loop indefinitely. As above, I have no way of
+  evaluating if this is a fundamental problem with the approach or a bug, and
+  whether or not this is related to the loop we get when we omit type
+  signatures. Incidentally, the same problem arises in this definition of
+  zipWith:
+
+    zipWith :: (a -> b -> c) -> Vec n a -> Vec n b -> Vec n c
+    zipWith f Nil         Nil         = Nil
+    zipWith f (Cons x xs) (Cons y ys) = Cons (f x y) (zipWith f xs ys)
+
+Third, and most importantly, apart from experimenting with the plugin, as
+described above, I have no real way of evaluating the results of the paper at
+all. Most of the "non-obvious" parts of the paper are in Section 4 (minimization
+algorithm, improve to constant, improve using a linear relation, etc.). But
+these all feel very ad-hoc; they aren't in any way obviously correct, or
+complete, or useful (details on that below). Perhaps that's just the nature of
+the beast; but it would be very good to see some more hard data, even if they
+are experimental results: what kind of larger examples did you implement? How
+much did each of those tactics described in Section 4 help? How much of a
+performance impact on compilation did the SMT solver have on those larger
+examples? Etc etc. (If the version of the type checker plugin currently
+available on the repo is also the version they used for the paper (I don't know;
+there are no tags of branches in the repo, although the last commit is "Add
+generated paper for easy access"), then the fact that the whole thing hangs
+under multiple circumstances (especially in functions like 'zipWith') makes me
+wonder if the authors tried it on any more serious examples at all. Perhaps they
+have; but again, the paper does not give enough information to substantiate
+claims.
+
+                      ===== Comments for author =====
+
+# Section 1.1.
+
+* When I first read this section it wasn't obvious to me that the examples relied
+  on the SMT plugin; I thought that you were going to show why, with standard
+  GHC, things were getting awkward thus motivating the need for an SMT solver.
+  The section is fine as is, but it might help to emphasize this to the reader,
+  just to avoid confusion.
+
+  In particular, the remark "GHC would have been just as happy had we defined
+  the type of Succ like.." is misleading here. This remark is useful: indeed,
+  this kind of reordering can make a use difference with standard dependently
+  typed solutions, but it's not *ghc* that's "just as happy"; rather, it's the
+  plugin.
+
+* As mentioned above, you should specify where the plugin can be downloaded, and
+  what imports and language flags are required to run the examples, so that the
+  reader can reproduce your results. In addition, you should specify which
+  solver you use; you mention much later in the paper that you use CVC4, but you
+  don't mention which version.
+
+# Section 2.1
+
+* In the discussion about proving the validity of a universally quantified
+  formula: when the solver fails to find a satisfying assignment, does this mean
+  that it's guaranteed that none exists?
+
+# Section 4
+
+* It might be nice to add a footnote with one sentence explaining what KnownNat
+  is.
+
+* Simililarly, in the aside, you compare the generalization of constraints with
+  ghc's flattening algorithm, but you don't actually explain what flattening is.
+  A single sentence would suffice, something like "is similar to the flattening
+  step performed by GHC, which removes nested function applications; for
+  instance, it replaces F (G x) ~ y with G x ~ z /\ F z ~ y.", or something
+  along those lines.
+
+# Section 6.2
+
+* "if all theories are convex" -- a sentence explaining of what it means for a
+  theory to be convex, or if that isn't possible, at least a reference, would be
+  helpful
+
+#  Algorithms (Section 4.4 and following)
+
+## Presentation
+
+The presentation of the algorithms is very sloppy. For example, you give the
+type
+
+    checkConsistent :: Solver -> [Expr] -> IO ()
+
+but looking at the implementation it's clear that checkConsistent returns a
+boolean, not unit.  Similarly, you give
+
+    minimize :: Solver -> [Expr] -> [Expr] -> IO ()
+
+but looking at the implementation minimize returns a list of expressions, not unit.
+
+Then below the definition of `minimize` you have a definition of `search`, but
+in the signature you say "minimize" rather than "search", and again the type
+signature is wrong (it doesn't return unit).
+
+## Minimization algorithm
+
+I don't understand this algorithm. We have a set of constraints which we know to
+be inconsistent, and we want to find an unsatisfiable core. Why would it be
+possible to compute this in O(n^2) time? It seems that the algorithm assumes
+that as soon as we find a constraint that leads to a contradiction, then that
+constraint _must_ be part of the unsatisfiable core, but this is not at all
+given; surely it's entirely possible that we have a set of constraints X with,
+say, one constraint C which is unsatisfiable all by itself, and the rest of the
+set X\{C} is also unsatisfiable? In this case we should report {X}, not C\{X};
+but this computation would be rather expensive. But the algorithm as stated just
+seems arbitrary.
+
+Moreover, even if we assume the algorithm is the right solution, it would be
+good to see some experimental results here. In larger developments how long does
+the computation of these minimal sets actually take? How large do these
+constraint sets become anyway when writing more serious code that uses lots of
+type-level arithmetic?
+
+## Improve to constant
+
+This algorithm seems more "obviously right" than the previous (it doesn't feel
+arbitrary), but again, it would be nice to see some performance characteristics
+here for more serious developments.
+
+## Improve to variable
+
+This algorithm however does feel more arbitrary. We are trying to derive the
+fact that two variables must always be the same, given the fact that the solver
+happened to pick the same value for both variables. Perhaps this is a useful
+heuristic, but we lack any information to judge whether it is. In larger
+developments, what is the probability that two variables _must_ be the same
+given that they _can_ be the same? This is potentially an expensive computation
+(quadratic in the number of variables).
+
+## Improve using a linear relation
+
+Now we're getting into very arbitrary territority. Why is this specific relation
+much more useful than others? The authors do try to justify this by saying "It
+turns out that this sort of situations occur fairly frequently", but then the
+example they give is entirely artificial; sure, using Proxies I can construct
+examples that would require any kind of unification. It would be much nicer to
+see why this particular kind of relation between two variables is beneficial in
+actual code.
+
+I'm no expert on automatic theorem proving, having mostly used Coq, but I'm
+somewhat surprised that there is no existing literature both on finding
+unsatisfiable core and on finding these kinds of improvements; the authors
+mention that some solvers do implement the former, although CVC4 does not. There
+are no known results to help here?
+
+# Very minor comments
+
+* It might help the reader to be slightly more consistent with your variable naming. Instead of
+
+    uAdd Zero x     = x
+    uAdd (Succ x) y = Succ (uAdd x y)
+
+  write
+
+    uAdd Zero     y = y
+    uAdd (Succ x) y = Succ (uAdd x y)
+
+  with better layout and using y consistently for the second argument (same goes for bAdd).
+
+* Section 1.2, "form a user's perspective" ~> "from"
+
+* Don't use "Section" (in caps) when it's not used as a name "This Section
+  contains" ~> "This section contains", "In this Section" ~-> "In this section",
+  and elsewhere too (referring to "In Section 5 we will.." is fine.)
+
+* Section 2.1, "if on such example exists" ~> "if no such.."
+
+* Section 3.2, "we may solve constraint" ~> ".. solve constraints" (plural)
+
+* Section 4.2, "than to prove something" ~> "that (in order) to prove
+  something". Same paragraph: "than there will" ~> "then .."
+
+* Section 4.4, "then we report and error" ~> ".. an error"
+
+* Section 4.7, "was produce" ~> "was produced"
+
+* Section 6, very first sentence, either delete "for integrating" or delete "for
+  using". In the second paragraph, "that answer" ~> "the answer", and "but the
+  rest" ~> "but in the rest"
+
+* Section 6.1, "combing" ~> "combining"
+
+* Section 6.2, "to disseminating" ~> "to disseminate"; same sentence, "to
+  structuring" ~> "to structure"
