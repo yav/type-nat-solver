@@ -100,7 +100,7 @@ function for adding natural numbers.
 Next, we define a function to add two such numbers:
 \begin{Verbatim}
 uAdd :: UNat m -> UNat n -> UNat (m + n)
-uAdd Zero x      = x
+uAdd Zero     y  = y
 uAdd (Succ x) y  = Succ (uAdd x y)
 \end{Verbatim}
 While this is a simple definition, and we are unlikely
@@ -175,7 +175,7 @@ to a Haskell programmer.
 \subsection{Structure of the Paper}
 
 The rest of the paper is organized as follows:
-we start with a brief overview of SMT solvers form a user's perspective
+we start with a brief overview of SMT solvers from a user's perspective
 (Section~\ref{smt}).  Then, in Section~\ref{GHC}, we introduce the
 basic concepts of GHC's constraints
 solver, which is necessary for putting the rest of the paper in context.
@@ -190,7 +190,7 @@ implementation of SMT solver, to engineer a modular constraint solver.
 \section {SMT Solvers}
 \label{smt}
 
-This Section contains an introduction to the core functionality
+This section contains an introduction to the core functionality
 of a typical SMT solver, and may be skipped by readers who are already
 familiar with similar tools.
 
@@ -227,7 +227,7 @@ formulas true.
 
 The same machinery may also be used to prove the validity of
 a universally quantified formula. The idea is that we use the SMT solver
-to look for a {\em counter-example} to the formula, and if on such
+to look for a {\em counter-example} to the formula, and if no such
 example exists, then we can conclude the formula is valid.
 For example, if we want to prove that $\forall x. (3 + x = 8) \implies x = 5$,
 then we can use the SMT solver to try to find some $x$ that contradicts it:
@@ -286,7 +286,7 @@ both calls to \Verb"check-sat".
 \section{GHC's Constraint Solver}
 \label{GHC}
 
-In this Section, we present relevant aspects of GHC's constraint solver.
+In this section, we present relevant aspects of GHC's constraint solver.
 The full details of the algorithm \cite{outsidein} are beyond the scope
 of this paper.
 
@@ -330,7 +330,7 @@ and the {\em inert set}.  The work queue contains constraints that need to be
 processed, while the inert set contains constraints that have already
 been processed.  Constraints are removed---one at a time---from the work queue,
 and {\em interacted} with the solver's state.  In the process of interaction
-we may solve constraint, generate new work, or report impossible constraints.
+we may solve constraints, generate new work, or report impossible constraints.
 If nothing interesting happens, then we relocate the constraint to the
 inert set.  It is also possible that during interaction a previously
 inert constraint may be reactivated in a rewritten form and re-inserted
@@ -430,7 +430,7 @@ as usual.
 
 We describe the algorithm in the context of the theory of linear arithmetic
 over the natural numbers, as having a concrete theory makes it easier to explain
-the process and illustrate it with examples.  In the next Section,
+the process and illustrate it with examples.  In the next section,
 we discuss how, and why, we might want to consider other theories also.
 
 \paragraph{Input.} Currently, the algorithm is implemented as a type-checker
@@ -587,9 +587,9 @@ assignment for $C(x)$.
 This is simply the contrapositive form of the previous Lemma.
 \end{corollary}
 
-Recall from Section~\ref{smt}, than to prove something, we make sure
+Recall from Section~\ref{smt}, that to prove something, we make sure
 that there are no counter examples.  The Corollary states that if there
-are no counter examples to the abstracted constraint, than there will
+are no counter examples to the abstracted constraint, then there will
 be no counter-examples to the original constraint as well, and so our
 proof is sound.  From a logical stand-point, naming away sub-terms
 amounts to trying to prove a more general fact, and so if we can complete
@@ -636,7 +636,7 @@ in the common SMT theories.  In the future, we may add support for
 direct integration with an SMT solver, and the only impact
 should be improved performance.
 
-The code samples in the rest of this Section use the following
+The code samples in the rest of this section use the following
 API for interaction with the solver:
 \begin{Verbatim}
 data Solver :: *
@@ -662,7 +662,7 @@ as discussed previously.
 
 To check for consistency, we assert all constraints, and ask the SMT
 solver if the result is satisfiable.  If this is not the case, then
-we report and error, otherwise we proceed with the algorithm.
+we report an error, otherwise we proceed with the algorithm.
 \begin{Verbatim}
 checkConsistent :: Solver -> [Expr] -> IO ()
 checkConsistent s cs =
@@ -919,7 +919,7 @@ evidence to be produced, explaining why the constraint holds
 constraints.  While this evidence is not used for code generation,
 it is a very useful for sanity checking while working with the constraint
 solver.  Unfortunately, at present, our plug-in does not produce any
-meaningful evidence, beyond indicating that the fact was produce
+meaningful evidence, beyond indicating that the fact was produced
 by using the SMT solver. In principle, SMT solvers should be able to
 produce a proof, when they have concluded that a set of assertions
 is unsatisfiable.  Unfortunately, this is not a commonly used feature,
@@ -930,14 +930,14 @@ proofs is not standardized.
 \section{Other Theories}
 \label{other}
 
-In the previous Section, we described the core working of a procedure
+In the previous section, we described the core working of a procedure
 for integrating an SMT solver with GHC's constraint solver.  While
 we concentrated on the theory of natural numbers and linear arithmetic,
 little of the algorithm is specific to that theory.
 
 It would be fairly easy to add support for other theories, simply
 by declaring additional ``uninterpreted'' kinds and type-functions
-in Haskell.  In the rest of this Section we explore some of these
+in Haskell.  In the rest of this section we explore some of these
 possibilities.
 
 \subsection{A Theory for Booleans}
@@ -956,7 +956,7 @@ Definitions like this work for simple evaluation, but do not support
 more sophisticated reasoning.  For example, if GHC encounters
 the constraint \Verb"And x y ~ True", it will not be able to conclude
 that the only way to solve this is if \Verb"x ~ True" and \Verb"y ~ True"
-both hold.  Using the approach outlined in the previous Section, we
+both hold.  Using the approach outlined in the previous section, we
 gain the full power of a SAT solver in the type system---SMT solvers
 can reason about booleans, indeed a SAT solver is usually an important
 part of the implementation of an SMT solver.
@@ -1029,15 +1029,15 @@ systems.
 \section{A Modular Constraint Solver}
 \label{modular-typechecker}
 
-In Section~\ref{algorithm} we outlined an algorithm for integrating for
-using an SMT solver to solver a certain class of constraints, and then
+In Section~\ref{algorithm} we outlined an algorithm for using an SMT solver
+to solver a certain class of constraints, and then
 in Section~\ref{other} we observed that it is possible---and potentially
 useful---to solve many other constraints.  This raises an interesting
 question: is it possible to structure the entire constraint solver for
 a complex programming language, such as Haskell or ML, using a modular
 approach, similar to the structure of an SMT solver?
 
-We do not know that answer to this question, but the rest of this Section,
+We do not know that answer to this question, but the rest of this section,
 we present a little bit about the structure of SMT solvers, and point out
 similarities with GHC's constraint solver, which suggests that this might
 be a fruitful area for future research.
@@ -1046,7 +1046,7 @@ be a fruitful area for future research.
 
 An SMT solver uses a collection of independent decision procedures,
 and orchestrates them to compute an answer to a given query.  A well-known
-technique for combing decision procedures is due to Nelson and Oppen
+technique for combining decision procedures is due to Nelson and Oppen
 \cite{NelsonOppen}.  Their algorithm starts with a collection of
 orthogonal theories (i.e., the symbols in the theories do not overlap),
 and shows how we may simplify terms in the combined language of the
@@ -1109,7 +1109,7 @@ it across theories,
 
 While GHC's constraint solver currently is structured quite differently
 from an SMT solver, the similarities---in particular, the use of equality
-constraints to disseminating information---suggest that there may be
+constraints to disseminate information---suggest that there may be
 a more modular way to structuring the solver.
 
 While GHC currently does not do any back-tracking search (i.e., decision
@@ -1134,12 +1134,12 @@ with new extensions to the system.
 
 The paper introduces the basics of GHC's constraint solver, and shows
 how to connect it with an external decision procedure that produces
-satisfying assignments.  The initial motiviation for this work was
+satisfying assignments.  The initial motivation for this work was
 to improve the type-level support for natural numbers, but the solution
-turned out to be more general, and opens up the door for intersting
-new extentions to Haskell's type system.  More generally, we have
+turned out to be more general, and opens up the door for interesting
+new extensions to Haskell's type system.  More generally, we have
 identified similarities between the techniques used to implement SMT solvers,
-and the implementaion of GHC's constraint solver, which suggests
+and the implementation of GHC's constraint solver, which suggests
 the possibility of a modular constraint solver design.
 
 
