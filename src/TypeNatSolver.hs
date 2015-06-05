@@ -4,6 +4,7 @@ import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
                  , getEqPredTys, mkTyConApp, mkNumLitTy, mkEqPred
                  , typeKind, classifyPredType, PredTree(..), EqRel(..)
+                 , getTyVar_maybe, getEqPredTys_maybe
                  )
 import TyCon     ( TyCon )
 import TcEvidence ( EvTerm(..), mkTcAxiomRuleCo )
@@ -36,6 +37,8 @@ import Outputable
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import           Data.Set ( Set )
+import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, writeIORef
                             , modifyIORef', atomicModifyIORef' )
 import           Data.List ( find, partition )
@@ -115,17 +118,21 @@ pluginSolve s gs ds0 ws0 =
   ppCts cs = vcat (map ppr cs)
 
 
-ctNotMember :: [PredType] -> Ct -> Bool
-ctNotMember tys ct = isNothing (find (eqType ty) tys)
-  where ty = ctPred ct
+ctNotMember :: [Ct] -> Ct -> Bool
+ctNotMember cts = \ct ->
+  case isVarEq ct of
+    Just (x,y) -> repFor x /= repFor y
+    _          -> isNothing (find (eqType (ctPred ct)) tys)
+  where
+  tys     = map ctPred cts
+  repFor  = makeEqVars cts
 
 solverEntry :: S -> [Ct] -> [Ct] -> [Ct] -> TcPluginM TcPluginResult
 solverEntry s givens _ [] =
   do res <- solverImprove s True givens
      case res of
        TcPluginOk [] new ->
-         do let known = map ctPred givens
-            return (TcPluginOk [] (filter (ctNotMember known) new))
+         return (TcPluginOk [] (filter (ctNotMember givens) new))
        x -> return x
 
 solverEntry s givens derived wanteds =
@@ -141,10 +148,84 @@ solverEntry s givens derived wanteds =
 
        TcPluginOk [] new_cts ->
           do (solved,_) <- solverSimplify s wanteds
-             let known = map ctPred (givens ++ derived ++ wanteds)
+             let known = givens ++ derived ++ wanteds
              return (TcPluginOk solved (filter (ctNotMember known) new_cts))
 
        TcPluginOk _ _ -> panic "solveImprove returned Solved!"
+
+
+{- The next few functions are a work-around;
+
+It would probably be better to solve this in the plug-in architecture
+itself once and forall.  Un earlier version of the plug-in architecture
+used to do this, but it would appear this has been removed.
+
+The issue is that when a plug-in computes new constraints (e.g., new givens)
+these may not match any givens that currently in the inert set, but are
+effectifely known to GHC.  For example, GHC knows `x ~ y`, but the
+plugin computed `y ~ x`.  Such "new work" will be processed by GHC,
+but it will notice that nothing needs to be done for it, and it will simply
+ignore it.
+
+Unfortunately, it does not let the plug-in architecture know that this happend,
+so it will re-run all plug-ins again, generating the exact same useless
+work againg.
+
+As a stop-gap, we check for a common source of these useless constraints in
+the plugin, but this really is not right.
+
+The common case is when there are a bunch of equalities between variables,
+`x ~ y & y ~ z`.  GHC keeps those in a normal form, and the plugin will
+compute additional equalities that are already known (e.g., `x ~ z`).
+
+We don't want to generate these as new work for now, to avoid the above problem
+-}
+
+-- | Is this of the form `x ~ y`.
+isVarEq :: Ct -> Maybe (TyVar,TyVar)
+isVarEq ct =
+  do (Nominal,t1,t2) <- getEqPredTys_maybe (ctPred ct)
+     x               <- getTyVar_maybe t1
+     y               <- getTyVar_maybe t2
+     return (x,y)
+
+-- | Compute equvalence classes from equalities between vars.
+-- Given a variable, give us back the representative for that class
+makeEqVars :: [Ct] -> TyVar -> TyVar
+makeEqVars cts = \tv -> Map.findWithDefault tv tv repMap
+  where
+  repMap = snd (foldr addCt (Map.empty, Map.empty) cts)
+
+  ordVar (x,y) = if x <= y then (x,y) else (y,x)
+
+  addCt ct (m,repFor) =
+    case isVarEq ct of
+      Nothing -> (m,repFor)
+      Just (a,b) ->
+        case (Map.lookup a repFor, Map.lookup b repFor) of
+          (Just r1, Just r2)
+             | r1 == r2     -> ( m,repFor)
+             | otherwise    ->
+               let bs = m Map.! b   -- inludes r2
+               in ( Map.adjust (Set.union bs) r1 (Map.delete r2 m)
+                  , foldr (\b r' -> Map.insert b r1 r') repFor (Set.toList bs)
+                  )
+
+          (Nothing, Just r) -> ( Map.insertWith Set.union r (Set.singleton a) m
+                               , Map.insert a r repFor
+                               )
+
+          (Just r, Nothing) -> ( Map.insertWith Set.union r (Set.singleton b) m
+                               , Map.insert b r repFor
+                               )
+          (Nothing, Nothing) -> ( Map.insert a (Set.fromList [a,b]) m
+                                , Map.insert b a (Map.insert a a repFor)
+                                )
+
+
+
+
+
 
 
 
