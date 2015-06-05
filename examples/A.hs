@@ -19,6 +19,12 @@ data Vec :: Nat -> * -> * where
   Nil :: Vec 0 a
   Cons :: a -> Vec n a -> Vec (n + 1) a
 
+vecHead :: Vec (n + 1) a -> a
+vecHead (Cons x _) = x
+
+vecZipWith :: (a -> b -> c) -> Vec n a -> Vec n b -> Vec n c
+vecZipWith f Nil         Nil         = Nil
+vecZipWith f (Cons x xs) (Cons y ys) = Cons (f x y) (vecZipWith f xs ys)
 
 append :: Vec m a -> Vec n a -> Vec (n + m) a
 append Nil ys = ys
@@ -36,6 +42,5 @@ f1 = g1
 
 g1 :: Proxy (1 + a) -> ()
 g1 _ = ()
-
 
 
