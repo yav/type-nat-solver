@@ -664,7 +664,7 @@ To check for consistency, we assert all constraints, and ask the SMT
 solver if the result is satisfiable.  If this is not the case, then
 we report an error, otherwise we proceed with the algorithm.
 \begin{Verbatim}
-checkConsistent :: Solver -> [Expr] -> IO ()
+checkConsistent :: Solver -> [Expr] -> IO Bool
 checkConsistent s cs =
   do mapM_ (solverAssert s) cs
      res <- solverCheck s
@@ -700,17 +700,19 @@ a custom minimization algorithm which work as follows:
 minimize :: Solver ->
             [Expr] -> -- part of conflict
             [Expr] -> -- search for conflict
-            IO ()
+            IO [Expr]
 minimize s yes [] = return yes
 minimize s yes mb =
   do solverPush s
      search s yes [] mb
 
-minimize :: Solver ->
-            [Expr] -> -- part of conflict
-            [Expr] -> -- currently asserted
-            [Expr] -> -- search for conflict
-            IO ()
+
+search :: Solver ->
+          [Expr] -> -- part of conflict
+          [Expr] -> -- currently asserted
+          [Expr] -> -- search for conflict
+          IO [Expr]
+
 search s yes mb (c : cs) =
   do solverAssert s c
      res <- solverCheck s
@@ -721,6 +723,8 @@ search s yes mb (c : cs) =
             minimize s (c : yes) mb
 
        _ -> search s yes (c : mb) cs
+
+search s yes mb [] = error "Impossible!"
 \end{Verbatim}
 The algorithm keeps track of constraints that we are certain are part
 of the conflict in the variable \Verb"yes".  In addition, the algorithm
