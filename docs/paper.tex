@@ -75,6 +75,29 @@ an SMT solver with GHC's type checker.  While we present
 the technique in the context of Haskell and GHC, the technique
 should be applicable to other programming languages and compilers too.
 
+The approach presented in this paper uses similar tools---namely
+SMT solvers---to Liquid Haskell \cite{liquid-haskell}. However,
+the design and overall goals of the two techniques are somewhat
+different and, indeed, it makes perfect sense to use both systems
+in a single project.  Liquid Haskell enables Haskell programmers
+to augment Haskell definitions with refinements of the types,
+which may be used to verify various properties of the program.
+The refinment language is separate from the language of Haskell
+types---it is quite expressive, and is really aimed at formal
+verification.  As such, a function will have its ordinary
+type and, in addition, a refinment type, which serves to specify
+some aspect of the behavior of the function.  The checks performed
+by Liquid Haskell are entirely separate from the ones performed
+by GHC's type checker.  This is quite different from the
+technuqe described in this paper, which shows how to integrate
+an SMT solver directly into GHC's type chcker.  The benefit of
+of extending GHC's type chcker is that we don't need to
+introduce a separate language for specifications, instead
+we may reuse types directly.  Ultimately, however, the two
+approaches are not at all mutually exclusive.  The next
+section gives a brief flavor of what can be achieved using
+the technieques from this paper.
+
 \subsection{Examples}
 
 We illustrate the utility of the functionality provided by our
@@ -205,8 +228,17 @@ simple: we may declare uninterpreted constants, assert formulas,
 and check if the asserted formulas are {\em satisfiable}.  Checking
 for satisfiability simply means that we are asking the
 question: are there concrete values for the uninterpreted constants
-that make all asserted formulas true.  Here is an example, using
-the notation of the SMTLIB standard \cite{smtlib2}
+that make all asserted formulas true. The solver may respond in
+one of three ways:
+\begin{itemize}
+\item \Verb"sat", which means that a satisfying assignment exists,
+\item \Verb"unsat", which means that a satisfying assignment does not exist,
+\item \Verb"unknown", which means that the solver did not find an answer,
+      often this is due to reaching some sort of limit (e.g, the solver
+      used up too much time).
+\end{itemize}
+
+This example uses the notation of the SMTLIB standard \cite{smtlib2}:
 
 \begin{Verbatim}
 (declare-fun x () Int)
@@ -342,15 +374,27 @@ become inert.
 In this paper we describe a fairly general extension to the constraint
 solver, but other researchers are interested in different extensions,
 for example, to add support for units of measure \cite{units-of-measure}.
-Instead of having many
-ad-hoc extensions directly
-in GHC's constraint solver, we collaborated to define and implement an
-API for extending GHC's functionality via {\em type-checker plug-ins}.
-At present, we are aware of two main
-users of this API---our work, and the work on units of measure. We
-hope, however, that this mechanism would be useful to other researchers too,
+
+Instead of having many ad-hoc extensions directly in GHC's constraint solver,
+we collaborated to define and implement an API for extending GHC's
+functionality via {\em type-checker plug-ins}.  At present, we are aware
+of three users of this API---our work, a related plug-in that can
+solve numerical constraints using custom rewrite rules
+\cite{typelits-normalise},
+and the work on units of measure \cite{units-of-measure}.
+
+While this infrastructure is still brand new, and not yet stable,
+we hope that this mechanism may be useful to other researchers too,
 as it makes it fairly easy to experiment with various extensions to
-GHC's constraint solver.
+GHC's constraint solver.  Since the framework is aimed at GHC developers,
+and is not intended for use in everyday Haskell programming, the plug-ins
+have a lot of power.  Indeed, it is not difficult to write a plug-in
+that would violate type-safety, in much the same way one could do this
+by modifying GHC's constraint solver directly.  The full details of
+the type-checker plug-ins API may be found in the GHC User's Guide
+\cite{ghc-manual}. Here we discuss only some
+of the design choices that we considered, as they have a direct
+bearing on the workings of our plug-in.
 
 An interesting question about type-checker plug-ins is: at what point in
 GHC's type checker should we invoke them?  The answer to this question
@@ -408,10 +452,10 @@ On the other hand, wanted constraints are goals that need to be proved,
 so they {\em cannot} be used to rewrite given constraints.  We may still
 use them to rewrite other wanted or derived constraints though.
 Finally, derived equalities are implied by the given and wanted constraints
-jointly, so they may not be used to rewrite given or wanted constraints
-directly, as doing so may lead to circular reasoning.
+jointly, so they may not be used in proofs directly,
+as doing so may lead to circular reasoning.
 
-Instead, derived equalities help with type inference, by guiding the
+Instead, derived equalities help with type inference, by {\em guiding} the
 instantiation of {\em unification variables}. In general,
 it is always sound to instantiate a unification variable with whatever
 type we want: doing so may reject valid programs, but it will not accept
@@ -423,7 +467,10 @@ as suggested by a derived constraint.  So, for example, if we compute a
 derived constraint \Verb"x ~ Int", and we have a wanted constraint
 \Verb"Eq x", and \Verb"x" is a unification variable, then we may
 rewrite \Verb"Eq x" to \Verb"Eq Int", which we would proceed to solve
-as usual.
+as usual.  This is bit subtle:  a derived equality is never used directly
+in a proof---instead it allows us to {\em change what we are trying to prove}
+by instantiating unification variables, which may help discharge all
+constraints that need solving.
 
 \section{Integrating GHC with an SMT Solver}
 \label{algorithm}
@@ -482,7 +529,10 @@ In this case, we'd like to use the SMT solver to compute a new given
 equality, \Verb"x ~ 3".  Then, this equality can be used by GHC to
 rewrite the wanted constraint \Verb"KnownNat x" to \Verb"KnownNat 3"
 which, in turn, can be discharged by the custom solver for the \Verb"KnownNat"
-class.  Such collaboration between different solvers is quite common.
+class\footnote{The class \Verb"KnownNat" is defined in module
+\Verb"GHC.TypeLits".  It is used to implement singleton types linking
+type-level literals to their run-time representations as \Verb"Integer".}.
+Such collaboration between different solvers is quite common.
 Interestingly, this looks a lot like the collaboration between decision
 procedures in an SMT solver!  We discuss this observation further
 in Section~\ref{modular-typechecker}.
@@ -598,7 +648,11 @@ the special case of the original constraint.
 
 \paragraph{Aside.}
 The step of naming foreign types is similar to the flattening step performed
-by GHC's constraint solver, the main difference being that GHC names every
+by GHC's constraint solver\footnote{GHC's ``flattening'' pass names the
+results of all type functions.  This is done before passing constraints
+to GHC's internal solver, but the process is reverted before passing the
+constraints to the external plug-ins. }.
+The main difference being that GHC names every
 call to a type-function, while we name only terms outside of the theory.
 Still, this duplication of work is somewhat unsatisfactory, and it would
 be nice to extend GHC's flattening pass so that it can be reused by
@@ -695,14 +749,14 @@ of the assertions that lead to the conflict---exactly what we want!
 Unfortunately, not all SMT solvers support this feature and CVC4---%
 the SMT solver that we used during the development of this work---%
 does not have this ability.  To work around this, we implemented
-a custom minimization algorithm which work as follows:
+a custom reduction algorithm which work as follows:
 \begin{Verbatim}
-minimize :: Solver ->
+reduce :: Solver ->
             [Expr] -> -- part of conflict
             [Expr] -> -- search for conflict
             IO [Expr]
-minimize s yes [] = return yes
-minimize s yes mb =
+reduce s yes [] = return yes
+reduce s yes mb =
   do solverPush s
      search s yes [] mb
 
@@ -720,7 +774,7 @@ search s yes mb (c : cs) =
        Unsat ->
          do solverPop s
             solverAssert s c
-            minimize s (c : yes) mb
+            reduce s (c : yes) mb
 
        _ -> search s yes (c : mb) cs
 
@@ -738,10 +792,30 @@ that caused the conflict is added to the \Verb"yes" set, and then we
 examine the previously asserted constraint, to check if they are necessary
 for the conflict.
 
-The minimization process performs in $O(n^2)$ time, where $n$ is the
+The reduction process performs in $O(n^2)$ time, where $n$ is the
 number of constraints.  This has not been a big problem,
-as this minimization happens only when we report errors and, typically,
+as this reduction happens only when we report errors and, typically,
 the number of constraints is fairly low.
+
+Also note that the reduction algorithm may not produce the {\em smallest}
+collection of constraints to cause a contradiction.  For example, consider
+the constraints $A,B,C$, and suppose that $A,B$ lead to a contradiction
+together, and also $C$ causes a contradiction on its own.  Now, depending
+on the order in which we process the constraints, we may either compute
+$C$ as the result of the reduction, or $A,B$.  This is OK---in this
+case the context happens to contain multiple errors, so the reduction
+algorithm will simply pick one of them to report.  Of course, a program
+would have to eventually fix both errors before the program is accepted.
+The important property of the algorithm is that the reduced set does
+not contain redundant constraints, in the sense that if we removed
+some of the constraints the resulting constraint set would be satisfiable.
+
+
+
+
+
+
+
 
 
 \subsection{Improvement}
@@ -838,15 +912,31 @@ so we attempt this improvement only when the previous two have failed,
 and only for the unification variables in the constraints.
 
 We can compute the values for $A$ and $B$, if we have two examples for
-$x$ and two examples for $y$. Note that each call to the solver in
-the previous improvement steps gave rise to a potential additional set
-of examples, so we have plenty of points to work with: we take care to
-remember the values for the variables from two models.   It is also
+$x$ and two examples for $y$.  It is quite standard to ask the SMT
+solver for additional examples: this is done by adding additional constraints
+that force the models to differ.  In our setting we know that we can
+always get another such examples---if this was not the case, a variable
+would have exactly one possible values, and we would have improved
+it to a constant, as describe previously.  Furthermore, since we do the linear
+relation improvement last, we usually can avoid extra calls to the solver
+because by this point we typically already have two models where
+the variables differ.  It is also
 important that the $x$ values be different, but we can always find such
 examples: if we cannot find such an example, then $x$ would have only
-one possible value, and it would have been improved already.  It turns
-out that this sort of situations occur fairly frequently.  Consider,
-for example, the following program fragment:
+one possible value, and it would have been improved already.
+
+We admit that this improvement is certainly somewhat bit ad-hoc: after all,
+why look for relations between two variables and more?  We implemented
+this improvement, because while experimenting with the implementation,
+we noticed that this sort of improvement is needed quite often,
+at least for a certain class of problems.  So, as far as we know, this
+simply a useful heuristic that is worth considering.  It is possible
+that alternative techniques (e.g., custom rewrite rules) could achieve
+the same effect more directly, and we are certainly considering exploring
+such approaches in future work.
+
+To see when this improvement is needed, consider the following program
+fragment:
 \begin{Verbatim}
 f :: Proxy (a + 1)
 f = Proxy
@@ -931,6 +1021,61 @@ so many provers do not support it out of the box, and the format of the
 proofs is not standardized.
 
 
+\subsection{Our Implementation}
+\label{implementation}
+
+To demonstrate the feasibility of the ideas described in this section,
+we implemented a GHC plug-in, available from GitHub \cite{type-nats-solver}.
+The implementation is intended as a proof-of-concept, and is not
+yet ``industrial strength''---more engineering work would be required
+to make it more robust and easier to install and configure.
+
+The majority of the effort so far has been focused on understanding how
+to integrate an SMT solver with the type-checker, and we have not
+conducted extensive testing and measurement of the performance of the plug-in.
+It is clear that calling out to an external tool has a cost associated
+with it.  However, the preliminary results are encouraging---the plug-in
+functions quite well on small examples, but certainly more testing and
+experience is needed to find out if the approach will scale to larger
+projects.
+
+If despite all the disclaimers, the reader is still interested in
+experimenting with the plug-in, we provide the list of GHC options and
+extensions that we used in the examples from this paper:
+
+\begin{Verbatim}
+{-# OPTIONS_GHC -fplugin=TypeNatSolver #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs #-}
+\end{Verbatim}
+
+The option \Verb"fplugin=TypeNatSolver" instructs GHC to load the SMT solver
+plug-in.  The rest are Haskell extensions that are commonly used in this
+setting:
+\begin{itemize}
+\item \Verb"DataKinds" enables natural number literals at the type
+level.
+\item \Verb"TypeOperators" and \Verb"TypeFamilies" are need to work
+with type-level functions such as \Verb"+".
+\item \Verb"KindSignatures" is used to specify the kinds of type variables,
+for example, to state that some type-variable is of kind \Verb"Nat".
+\item \Verb"GADTs" enables Generalized Algebraic Data-types;  strictly
+speaking, these are not required to experiment with the plug-in, however,
+many of the more interesting uses of the plug-in end up using GADTs.
+\end{itemize}
+
+For the experiments in this paper, we used CVC4, version 1.4.  There was
+no deep reason for using this particular solver, other that when we started
+working on the project this was the solver with the least restrictive license.
+To communicate with the solver, plug-in uses the SMTLIB format (version 2).
+Many other SMT solvers support this format (e.g., Z3, Yices), so they
+should work just as well.
+
+
+
 \section{Other Theories}
 \label{other}
 
@@ -939,10 +1084,14 @@ for integrating an SMT solver with GHC's constraint solver.  While
 we concentrated on the theory of natural numbers and linear arithmetic,
 little of the algorithm is specific to that theory.
 
-It would be fairly easy to add support for other theories, simply
-by declaring additional ``uninterpreted'' kinds and type-functions
-in Haskell.  In the rest of this section we explore some of these
-possibilities.
+In principle, it should be fairly easy to add support for other theories,
+simply by declaring additional ``uninterpreted'' kinds and type-functions
+in Haskell.  Of course---as is often the case---doing so is not completely
+trivial, which is why we have not done so yet.  For example, while we
+have presented a mechanism for working with the symbols of a new theory
+in the type-checker, one still needs to make decisions about which symbols
+to import, or what notation to use.  In the rest of this section we
+explore some of these possibilities.
 
 \subsection{A Theory for Booleans}
 We already made use of the lifted \Verb"Bool" type, but so far Haskell
@@ -1118,7 +1267,8 @@ a more modular way to structuring the solver.
 
 While GHC currently does not do any back-tracking search (i.e., decision
 procedure may only report inconsistency, or certain knowledge), this
-is also the case for Nelson-Open if all theories are convex.  In addition,
+is also the case for Nelson-Open if all theories are convex \cite{NelsonOppen}.
+In addition,
 there are interesting cases where backtracking might be potentially useful
 in Haskell too.  For example, when solving class constraints in the
 context of overlapping instances, or instance chains \cite{instance-chains},

@@ -1,0 +1,74 @@
+CHANGES:
+
+* Fix typos and stylistic suggestions.
+* Fix incorrect type signatures.
+* Clarify the status of the type-checker plug-in framework, Section 3.4.
+* Add a new sub-section, 4.8, which discusses the concrete implementation
+  of the ideas in the paper.  In particular, there is a pointer to the
+  repo, and a description of how to try out the plug-in.
+* Some notes explaining why I have not implemented other SMT solver theories.
+* Rephrase and clarify the purpose of derived constraints.
+* Add text to explain why we can always get additional models during improvement.
+* Add text to clarifying why we implemented the linear-relation improvement;
+  it is indeed simply an ad-hoc heuristic that works for many useful examples.
+  Perhaps in the future it could be replaced by a better mechanism, but in the
+  mean time it works.
+* Add a foot-note briefly outlining what is GHC's "flattening" pass.
+* Rename the algorithm "minimize" to "reduce", which seems more accurate.
+  Add a paragraph explaining why the reduction algorithm is reasonable,
+  and in what sense the result is minimal.
+* Add footnote explaining what is KnownNat
+* Add text to clarify the responses of the SMT solver, in particular
+  that getting "unsat" means that a solution certainly does not exist
+* Add a comment about relation to Liquid Haskell
+
+
+Comments to review #2:
+
+Thank you for the detailed feed-back!
+
+The non-termination issue you encountered was because GHC's plug-in
+framework has changed a bit, and the SMT solver plug-in had not been
+appropriately updated.  I have added a work-around in the plug-in that
+avoids the non-termination, however, I plan to discuss the changes that
+cause the problem with the other GHC developers, as I think that fix
+really belongs in the plug-in framework, and not individual plug-ins.
+
+About the comments on type-inference, type holes, and inaccessible patterns:
+
+  * Type inference: the reason you were not able to remove the type signature
+    is that the `Vector` data-type is a GADT.  GHC implementation of GADTs
+    requires that when pattern matching on them, the programmer has to specify
+    a type signature.  The reason for this requirement is that without it,
+    sometimes it is not clear what should be the type of the inferred function.
+    As long as you don't use GADTs, you can play around with the type-nats
+    plug-in and GHC will happily infer types.
+
+  * Type holes: The behavior you observed is not related to the extensions
+    introduced in this paper, this is just how type holes are implemented at the
+    moment.  I fully agree that the GHC type holes could report
+    a better message, and show---for example---the constraints that are
+    in scope where the hole appears.
+
+  * Inaccessible patterns: GHC currently does not use type information
+    to determine if GADT patterns are inaccessible.  I believe there is a paper
+    submitted to this year's ICFP that solves this problem!  Having said
+    this, the bug you encountered was not due to inaccessible patters,
+    but rather to the changes in the type-checker plug-ins framework
+    I mentioned above.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
