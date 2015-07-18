@@ -135,8 +135,8 @@ we would get a type error:
   Could not deduce (((n1 + n1) + 1) ~ (m + n))
     from the context (m ~ (n1 + 1))
 \end{Verbatim}
-It is a small detail, but it is worth pointing out that
-GHC would have been just as happy had we defined the type
+It is a small detail, but it is worth pointing out that our
+GHC extension would have been just as happy had we defined the type
 of \Verb"Succ" like this:
 \begin{Verbatim}
   Succ :: UNat n -> UNat (1 + n)
@@ -189,10 +189,40 @@ bSucc (Even x)  = Odd x
 bSucc (Odd x)   = Even (bSucc x)
 \end{Verbatim}
 
-While these examples are somewhat simplistic, we hope
-that they demonstrate the utility of the technology,
-and show that using the extension feels quite natural
-to a Haskell programmer.
+Note that while these examples are somewhat simplistic,
+they demonstrate the utility of the technology, and show that using
+the extension feels quite natural to a Haskell programmer.
+
+A more conventional example is the type of fixed-length vectors:
+\begin{Verbatim}
+data Vec :: Nat -> * -> * where
+  Nil  :: Vec 0 a
+  Cons :: a -> Vec n a -> Vec (n + 1) a
+\end{Verbatim}
+Note that this is very similar to \Verb"UNat", except that it also
+stores a value in each \Verb"Cons" node.  The operation of appending
+two vectors together follows exactly the same pattern as \Verb"uAdd".
+An example of a function that is meaningful for vectors, bit no
+so much for the unary natural numbers is reversing a vector, which
+may be defined as follows using our extension:
+\begin{Verbatim}
+vecReverse = go Nil
+  where
+  go :: Vec m a -> Vec n a -> Vec (m + n) a
+  go xs Nil = xs
+  go xs (Cons y ys) = go (Cons y xs) ys
+\end{Verbatim}
+This example also illustrates that our extension does not change any type
+signature requirements beyond what is already in GHC: the helper
+function \Verb"go" needs a type signature, because it pattern-matches
+using GADT constructors, however the type of \Verb"reverse" can be
+inferred as usual:
+\begin{Verbatim}
+*Example> :type vecReverse
+vecReverse :: Vec n a -> Vec n a
+\end{Verbatim}
+
+
 
 
 \subsection{Structure of the Paper}
@@ -263,6 +293,8 @@ to look for a {\em counter-example} to the formula, and if no such
 example exists, then we can conclude the formula is valid.
 For example, if we want to prove that $\forall x. (3 + x = 8) \implies x = 5$,
 then we can use the SMT solver to try to find some $x$ that contradicts it:
+
+\break
 
 \begin{Verbatim}
 (declare-fun x () Int)
@@ -863,6 +895,7 @@ solver, and reusing all asserted constraints, just doing one
 additional \Verb"assert" per variable. To see the process in action,
 consider the constraint \Verb"(2 * x) ~ 16".  The steps that we'd perform
 are:
+\break
 \begin{Verbatim}
 (assert (= (* 2 x) 16))
 (check-sat)
@@ -925,16 +958,11 @@ important that the $x$ values be different, but we can always find such
 examples: if we cannot find such an example, then $x$ would have only
 one possible value, and it would have been improved already.
 
-We admit that this improvement is certainly somewhat bit ad-hoc: after all,
-why look for relations between two variables and more?  We implemented
-this improvement, because while experimenting with the implementation,
-we noticed that this sort of improvement is needed quite often,
-at least for a certain class of problems.  So, as far as we know, this
-simply a useful heuristic that is worth considering.  It is possible
-that alternative techniques (e.g., custom rewrite rules) could achieve
-the same effect more directly, and we are certainly considering exploring
-such approaches in future work.
+Once we compute candidate values for $A$ and $B$, we still need to
+invoke the solver to validate that the computed relation holds in all
+instances of the constraints, and not just the two that we happened to pick.
 
+\break
 To see when this improvement is needed, consider the following program
 fragment:
 \begin{Verbatim}
@@ -944,13 +972,31 @@ f = Proxy
 g :: Proxy (b + 2)
 g = f
 \end{Verbatim}
-In this example, GHC needs to infer how to instantiate \Verb"f"'s type
-parameter, \Verb"a", and to do so, our plug-in needs to figure out that
-\Verb"a" may be instantiate to \Verb"b + 1".
+To check this program, GHC needs to solve the constraint \\
+\Verb"(?a + 1) ~ (b + 2)". The question mark in \Verb"?a" emphasizes that
+this is a unification variable, standing-in for a type that needs to be
+inferred. We cannot discharge this constraint immediately, because it
+does not hold {\em for all} possible values of \Verb"?a" and \Verb"b".
+However, since \Verb"?a" is a unification variable, we have the option
+of instantiating it to change the constraint.  Of course, we have to
+be careful that in doing so we do not loose any generality and, in this
+case, the safe instantiation is \Verb"?a := b + 1".  The purpose of the
+linear-relation improvement is to discover these kinds of
+instantiations.
 
-Once we compute candidate values for $A$ and $B$, we still need to
-invoke the solver to validate that the compute relation holds in all
-instances of the constraints, and not just the two that we happened to pick.
+At first sight, this example may appear artificial, however it is an
+abstraction of a very common pattern: namely when one function calls
+another, and the type of the provided argument does not match
+syntactically the type of the expected argument.  As another example,
+consider the function \Verb"vecHead", which requires that its parameter
+has at least one element:
+\begin{Verbatim}
+vecHead :: Vec (n + 1) a -> a
+vecHead (Cons x _) = x
+\end{Verbatim}
+Now, if we tried to call \Verb"vecHead" with an expression of type
+\Verb"Vec (b + 2) a", we'd end up in exactly the same situation as the
+previous example, where we'd have to infer that \Verb"?n = b + 1".
 
 Our current implementation only considers linear relations between pairs
 of variables as we were concerned about the performance penalty if
@@ -958,6 +1004,9 @@ we tried combinations of more variables: the math will work out, but
 the algorithm might become too slow to be practical, and alternative
 solutions based on rewriting might be more suitable.
 
+We admit that this improvement is somewhat ad-hoc, but as the previous
+examples illustrate, it helps in situations that are quite common in
+practice.  It was also fairly simple to implement using the solver.
 
 \paragraph{Custom Improving Rewrites.}
 All the improvements that we've defined so far work by {\em only} using
@@ -967,7 +1016,11 @@ It also makes sense to extend the system with custom rewrite rules,
 which has the potential of speeding up performance, and also adding
 support for features that go beyond the solver's capabilities.
 We have experimented with various custom rules, but it is as yet
-unclear what constitutes a good set of rewrites.
+unclear what constitutes a good set of rewrites.  Concrete custom
+rules that would help are various normalization rules, for example
+applying distributivity repeatedly, and also rules that rewrite
+equations so that there is just a unification variable on the one
+side of the equation, which would help it get instantiated.
 
 
 \subsection{Solving Constraints}
@@ -1055,6 +1108,8 @@ extensions that we used in the examples from this paper:
 The option \Verb"fplugin=TypeNatSolver" instructs GHC to load the SMT solver
 plug-in.  The rest are Haskell extensions that are commonly used in this
 setting:
+
+\break
 \begin{itemize}
 \item \Verb"DataKinds" enables natural number literals at the type
 level.
