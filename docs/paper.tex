@@ -1355,22 +1355,175 @@ the possibility of a modular constraint solver design.
 
 
 
-\bibliographystyle{abbrvnat}
-\bibliography{refs}
+% \bibliographystyle{abbrvnat}
+% \bibliography{refs}
+
+% The bibliography should be embedded for final submission.
 
 
 
+\begin{thebibliography}{}
+\softraggedright
 
-% 
-% % The bibliography should be embedded for final submission.
-% 
-% \begin{thebibliography}{}
-% \softraggedright
-% 
-% \bibitem[Smith et~al.(2009)Smith, Jones]{smith02}
-% P. Q. Smith, and X. Y. Jones. ...reference text...
-% 
-% \end{thebibliography}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[yic(2015)]{yices}
+\emph{Yices Manual}, 2015.
+\newblock URL \url{http://yices.csl.sri.com/papers/manual.pdf}.
+
+\bibitem[{Adam Gundry}(2015)]{units-of-measure}
+{Adam Gundry}.
+\newblock A typechecker plugin for units of measure.
+\newblock Submitted for publication., 2015.
+
+\bibitem[{Christiaan Baaij}(2015)]{typelits-normalise}
+{Christiaan Baaij}.
+\newblock A plug-in for normalising type literals in ghc.
+\newblock 2015.
+\newblock URL \url{https://github.com/clash-lang/ghc-typelits-natnormalise}.
+
+\bibitem[{Clark Barrett} et~al.(2010){Clark Barrett}, {Aaron Stump}, and
+  {Cesare Tinelli}]{smtlib2}
+{Clark Barrett}, {Aaron Stump}, and {Cesare Tinelli}.
+\newblock The {SMT-LIB} standard: Version 2.0.
+\newblock Technical report, Department of Computer Science, The University of
+  Iowa, 2010.
+\newblock URL
+  \url{http://smtlib.cs.uiowa.edu/papers/smt-lib-reference-v2.0-r12.09.09.pdf}.
+
+\bibitem[{Clark Barrett} et~al.(2011){Clark Barrett}, {Christopher L. Conway},
+  {Morgan Deters}, {Liana Hadarean}, {Dejan Jovanovi\'{c}}, {Tim King}, {Andrew
+  Reynolds}, and {Cesare Tinelli}]{cvc4}
+{Clark Barrett}, {Christopher L. Conway}, {Morgan Deters}, {Liana Hadarean},
+  {Dejan Jovanovi\'{c}}, {Tim King}, {Andrew Reynolds}, and {Cesare Tinelli}.
+\newblock {CVC4}.
+\newblock In \emph{Proceedings of the 23rd International Conference on Computer
+  Aided Verification}, Snowbird, Utah, USA, 2011.
+\newblock URL \url{http://dl.acm.org/citation.cfm?id=2032305.2032319}.
+
+\bibitem[{Dimitrios Vytiniotis} and {Simon Peyton Jones}(2013)]{fc-evidence}
+{Dimitrios Vytiniotis} and {Simon Peyton Jones}.
+\newblock Evidence normalization in System FC.
+\newblock In \emph{24th International Conference on Rewriting Techniques and
+  Applications}, Eindhoven, Netherlands, 2013.
+\newblock URL
+  \url{http://research.microsoft.com/en-us/um/people/simonpj/papers/ext-f/fc-new-tyco.pdf}.
+
+\bibitem[{Dimitrios Vytiniotis} et~al.(2011){Dimitrios Vytiniotis}, {Simon
+  Peyton Jones}, {Tom Schrijvers}, and {Martin Sulzmann}]{outsidein}
+{Dimitrios Vytiniotis}, {Simon Peyton Jones}, {Tom Schrijvers}, and {Martin
+  Sulzmann}.
+\newblock {OutsideIn(X)}: Modular type inference with local assumptions.
+\newblock \emph{Journal of Functional Programming}, September 2011.
+\newblock URL
+  \url{http://research.microsoft.com/apps/pubs/default.aspx?id=162516}.
+
+\bibitem[{Greg Nelson} and {Derek C. Oppen}(1979)]{NelsonOppen}
+{Greg Nelson} and {Derek C. Oppen}.
+\newblock Simplification by cooperating decision procedures.
+\newblock \emph{ACM Transactions on Programming Languages and Systems},
+  1\penalty0 (2), October 1979.
+\newblock URL \url{http://doi.acm.org/10.1145/357073.357079}.
+
+\bibitem[{Iavor S. Diatchki}(2015{\natexlab{a}})]{simple-smt}
+{Iavor S. Diatchki}.
+\newblock \emph{simple-smt: a {Haskell} library for working with SMT solvers},
+  2015{\natexlab{a}}.
+\newblock URL \url{http://hackage.haskell.org/package/simple-smt}.
+
+\bibitem[{Iavor S. Diatchki}(2015{\natexlab{b}})]{type-nats-solver}
+{Iavor S. Diatchki}.
+\newblock A plug-in for solving linear constraints using an smt solver.
+\newblock 2015{\natexlab{b}}.
+\newblock URL \url{https://github.com/yav/type-nat-solver}.
+
+\bibitem[{J. Garrett Morris} and {Mark P. Jones}(2010)]{instance-chains}
+{J. Garrett Morris} and {Mark P. Jones}.
+\newblock Instance chains: Type class programming without overlapping
+  instances.
+\newblock In \emph{Proceedings of the 15th ACM SIGPLAN International Conference
+  on Functional Programming (ICFP '10)}, Baltimore, Maryland, USA, 2010.
+\newblock URL \url{http://web.cecs.pdx.edu/~mpj/pubs/instancechains.pdf}.
+
+\bibitem[{Leonardo de Moura} and {Nikolaj Bjørner}(2008)]{z3}
+{Leonardo de Moura} and {Nikolaj Bjørner}.
+\newblock Z3: An efficient smt solver.
+\newblock In \emph{Tools and Algorithms for the Construction and Analysis of
+  Systems, 14th International Conference}, Budapest, Hungary, 2008.
+\newblock URL \url{http://research.microsoft.com/projects/z3/z3.pdf}.
+
+\bibitem[{Mark P. Jones}(1995)]{improvement}
+{Mark P. Jones}.
+\newblock Simplifying and improving qualified types.
+\newblock In \emph{FPCA '95: Conference on Functional Programming Languages and
+  Computer Architecture}, La Jolla, California, USA, 1995.
+\newblock URL \url{http://web.cecs.pdx.edu/~mpj/pubs/fpca95.pdf}.
+
+\bibitem[{Niki Vazou} et~al.(2014){Niki Vazou}, {Eric L. Seidel}, {Ranjit
+  Jhala}, {Dimitrios Vytiniotis}, and {Simon Peyton-jones}]{liquid-haskell}
+{Niki Vazou}, {Eric L. Seidel}, {Ranjit Jhala}, {Dimitrios Vytiniotis}, and
+  {Simon Peyton-jones}.
+\newblock Refinment types for Haskell.
+\newblock In \emph{Proceedings of the 19th ACM SIGPLAN International Conference
+  on Functional Programming}, Gothenburg, Sweeden, 2014.
+\newblock URL
+  \url{http://goto.ucsd.edu/~rjhala/papers/refinement_types_for_haskell.pdf}.
+
+\bibitem[{Patrick C. Hickey} et~al.(2014){Patrick C. Hickey}, {Lee Pike},
+  {Trevor Elliott}, {James Bielman}, and {John Launchbury}]{ivory-experience}
+{Patrick C. Hickey}, {Lee Pike}, {Trevor Elliott}, {James Bielman}, and {John
+  Launchbury}.
+\newblock Building embedded systems with embedded {DSLs} (experience report).
+\newblock In \emph{Proceedings of the 2014 ACM SIGPLAN Conference on Functional
+  Programming}, Gothenburg, Sweden, 2014.
+\newblock URL
+  \url{https://github.com/GaloisInc/smaccmpilot-experiencereport/blob/master/embedded-experience.pdf?raw=true}.
+
+\bibitem[{Richard A. Eisenberg} and {Jan Stolarek}(2014)]{Eisenberg2014}
+{Richard A. Eisenberg} and {Jan Stolarek}.
+\newblock Promoting functions to type families in {Haskell}.
+\newblock In \emph{Proceedings of the 2014 ACM SIGPLAN Symposium on {Haskell}},
+  Gothenburg, Sweden, 2014.
+\newblock URL
+  \url{http://www.cis.upenn.edu/~eir/papers/2014/promotion/promotion.pdf}.
+
+\bibitem[{Richard A. Eisenberg} and {Stephanie Weirich}(2012)]{Eisenberg2012}
+{Richard A. Eisenberg} and {Stephanie Weirich}.
+\newblock Dependently typed programming with singletons.
+\newblock In \emph{Proceedings of the 2012 ACM SIGPLAN Symposium on {Haskell}},
+  Copenhagen, Denmark, 2012.
+
+\bibitem[{Sam Lindley} and {Conor McBride}(2013)]{Lindley2013}
+{Sam Lindley} and {Conor McBride}.
+\newblock Hasochism: The pleasure and pain of dependently typed {Haskell}
+  programming.
+\newblock In \emph{Proceedings of the 2013 ACM SIGPLAN Symposium on {Haskell}},
+  Boston, Massachusetts, USA, 2013.
+\newblock URL
+  \url{https://personal.cis.strath.ac.uk/conor.mcbride/pub/hasochism.pdf}.
+
+\bibitem[{Sergey Berezin} et~al.(2003){Sergey Berezin}, {Vijay Ganesh}, and
+  {Daivd L. Dill}]{cvc4-lin-arith}
+{Sergey Berezin}, {Vijay Ganesh}, and {Daivd L. Dill}.
+\newblock An online proof-producing decision procedure for mixed-integer linear
+  arithmetic.
+\newblock In \emph{Proceedings of the 9th International Conference on Tools and
+  Algorithms for the Construction and Analysis of Systems}, Warsaw, Poland,
+  2003.
+\newblock URL \url{http://hci.stanford.edu/cstr/reports/2007-07.pdf}.
+
+\bibitem[{The GHC Team}(2015)]{ghc-manual}
+{The GHC Team}.
+\newblock \emph{The Glorious Glasgow Haskell Compilation System User's Guide,
+  Version 7.10.1}, 2015.
+\newblock URL
+  \url{https://downloads.haskell.org/~ghc/7.10.1/docs/html/users_guide/index.html}.
+
+\end{thebibliography}
 
 
 \end{document}
