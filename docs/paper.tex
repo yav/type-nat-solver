@@ -82,21 +82,21 @@ different and, indeed, it makes perfect sense to use both systems
 in a single project.  Liquid Haskell enables Haskell programmers
 to augment Haskell definitions with refinements of the types,
 which may be used to verify various properties of the program.
-The refinment language is separate from the language of Haskell
+The refinement language is separate from the language of Haskell
 types---it is quite expressive, and is really aimed at formal
 verification.  As such, a function will have its ordinary
-type and, in addition, a refinment type, which serves to specify
+type and, in addition, a refinement type, which serves to specify
 some aspect of the behavior of the function.  The checks performed
 by Liquid Haskell are entirely separate from the ones performed
 by GHC's type checker.  This is quite different from the
-technuqe described in this paper, which shows how to integrate
-an SMT solver directly into GHC's type chcker.  The benefit of
-of extending GHC's type chcker is that we don't need to
+technique described in this paper, which shows how to integrate
+an SMT solver directly into GHC's type checker.  The benefit of
+of extending GHC's type checker is that we don't need to
 introduce a separate language for specifications, instead
 we may reuse types directly.  Ultimately, however, the two
 approaches are not at all mutually exclusive.  The next
 section gives a brief flavor of what can be achieved using
-the technieques from this paper.
+the techniques from this paper.
 
 \subsection{Examples}
 
@@ -617,7 +617,7 @@ symbol.
 For example, the constraint \Verb"(F 3 + 4) ~ 7" will be imported as
 \Verb"(x + 4) ~ 7", and we will remember that \Verb"x" stands for \Verb"F 3".
 Later on, if we need to return results to the core GHC solver that mention
-\Verb"x", we replace it by the orignal expression, \Verb"F 3".
+\Verb"x", we replace it by the original expression, \Verb"F 3".
 
 The process of abstracting foreign constraints makes sense in our context,
 because it {\em generalizes} the constraint.  Consider a constraint $C(t)$, and
