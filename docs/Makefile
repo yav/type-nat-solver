@@ -7,3 +7,6 @@ paper.pdf: paper.tex refs.bib
 	pdflatex -output-directory build $<
 	pdflatex -output-directory build $<
 	cp build/paper.pdf .
+
+paper.zip: paper.tex sigplanconf.cls
+	zip paper.zip $^
