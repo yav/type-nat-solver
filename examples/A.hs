@@ -44,3 +44,20 @@ g1 :: Proxy (1 + a) -> ()
 g1 _ = ()
 
 
+
+vecMaximum :: Vec (n + 1) Int -> Int
+vecMaximum (Cons x xs) = go x xs
+  where
+  go :: Int -> Vec a Int -> Int
+  go m Nil         = m
+  go m (Cons n xs) = go (max m n) xs
+
+testLin :: Vec (2 + m) a -> a
+testLin xs = vecHead xs
+
+
+{-
+-- XXX: Tricky, requires us to "invent" a new variable.
+testLin :: (2 <= a) => Vec a Int -> Int
+testLin xs = vecMaximum xs
+-}
