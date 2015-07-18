@@ -5,26 +5,29 @@
 \usepackage{fancyvrb}
 \usepackage{url}
 \usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
 
 \newtheorem*{lemma}{Lemma}
 \newtheorem*{corollary}{Corollary}
 
 \begin{document}
+\toappear{}
 
 \special{papersize=8.5in,11in}
 \setlength{\pdfpageheight}{\paperheight}
 \setlength{\pdfpagewidth}{\paperwidth}
 
-\conferenceinfo{Haskell Symposium 2015}{September, 2015, Vancouver, Canada} 
-\copyrightyear{2015} 
-\copyrightdata{978-1-nnnn-nnnn-n/yy/mm} 
-\doi{nnnnnnn.nnnnnnn}
+% \conferenceinfo{Haskell Symposium 2015}{September, 2015, Vancouver, Canada} 
+% \copyrightyear{2015} 
+% \copyrightdata{978-1-nnnn-nnnn-n/yy/mm} 
+% \doi{nnnnnnn.nnnnnnn}
 
 
 \title{Improving Haskell Types with SMT}
 
 \authorinfo{Iavor S. Diatchki}
-           {Galois Inc.}
+           {Galois Inc., USA}
            {iavor.diatchki@gmail.com}
 
 \maketitle
@@ -39,7 +42,8 @@ external decision procedures, such as reasoning about type-level booleans,
 bit-vectors, or any other theory supported by SMT solvers.
 \end{abstract}
 
-\category{CR-number}{subcategory}{third-level}
+\category{D.3.3}{Language Constructs and Features}{Constraints}
+\keywords Type systems, SMT, constraint solving
 
 \section{Introduction}
 
@@ -895,7 +899,9 @@ solver, and reusing all asserted constraints, just doing one
 additional \Verb"assert" per variable. To see the process in action,
 consider the constraint \Verb"(2 * x) ~ 16".  The steps that we'd perform
 are:
+
 \break
+
 \begin{Verbatim}
 (assert (= (* 2 x) 16))
 (check-sat)
