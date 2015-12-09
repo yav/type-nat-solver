@@ -66,8 +66,10 @@ quiet = 1
 pluginInit :: [CommandLineOption] -> TcPluginM S
 pluginInit opts = tcPluginIO $
   do -- XXX: Use `opts`
-     let exe  = "cvc4"
-         opts = [ "--incremental", "--lang=smtlib2" ]
+     let {- exe  = "cvc4"
+         opts = [ "--incremental", "--lang=smtlib2" ] -}
+         exe = "z3"
+         opts = [ "-smt2", "-in" ]
      doLog <- SMT.newLogger quiet
      proc  <- SMT.newSolver exe opts (Just doLog)
 
