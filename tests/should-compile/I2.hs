@@ -9,9 +9,11 @@ module I2 where
 import GHC.TypeLits
 import Data.Proxy
 
-f :: Proxy (a + 6) -> ()
-f _ = ()
+f :: Proxy (6 + x) -> ()
+f x = g x
 
 g :: (6 <= x) => Proxy x -> ()
-g x = f x
+g _ = ()
+
+
 
