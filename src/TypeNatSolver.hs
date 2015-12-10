@@ -49,6 +49,7 @@ import qualified Control.Applicative as A
 import           SimpleSMT (SExpr,Value(..),Result(..))
 import qualified SimpleSMT as SMT
 
+import GHC.TcPluginM.Extra (newWanted, newGiven, newDerived)
 
 plugin :: Plugin
 plugin = defaultPlugin { tcPlugin = Just . thePlugin }
@@ -302,9 +303,9 @@ solverImprove s withEv cts =
 
                 let loc    = ctLoc oneOfOurs -- XXX: Better location?
                     toCt (ty1,ty2) = mkNonCanonical
-                                   $ mkNewFact loc withEv (ty1, ty2)
+                                  <$> mkNewFact loc withEv (ty1, ty2)
 
-                return (TcPluginOk [] (map toCt imps))
+                TcPluginOk [] <$> mapM toCt imps
 
 
 {- Identify a sub-set of constraints that leads to a contradiction.
@@ -709,15 +710,10 @@ evBy (t1,t2) = EvCoercion $ mkTcAxiomRuleCo decisionProcedure [t1,t2] []
 -- | Used when we generate new constraints.
 -- The boolean indicates if we are generateing a given or
 -- a derived constraint.
-mkNewFact :: CtLoc -> Bool -> (Type,Type) -> CtEvidence
+mkNewFact :: CtLoc -> Bool -> (Type,Type) -> TcPluginM CtEvidence
 mkNewFact newLoc withEv (t1,t2)
-  | withEv = CtGiven { ctev_pred = newPred
-                     , ctev_evtm = evBy (t1,t2)
-                     , ctev_loc  = newLoc
-                     }
-  | otherwise = CtDerived { ctev_pred = newPred
-                          , ctev_loc  = newLoc
-                          }
+  | withEv = newGiven newLoc newPred (evBy (t1,t2))
+  | otherwise = newDerived newLoc newPred
   where
   newPred = mkEqPred t1 t2
 
