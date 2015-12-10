@@ -926,10 +926,17 @@ varToType x vi = go (smtCurScope vi : smtOtherScopes vi)
 
 -- | Pick an SMT name for a Haskell type variable.
 thyVarName :: TyVar -> String
-thyVarName x = occNameString (nameOccName n) ++ "_" ++ show u
+thyVarName x = encodeString (occNameString (nameOccName n)) ++ "_" ++ show u
   where n = tyVarName x
         u = nameUnique n
-
+        -- We need to encode strings because the SMTLib format
+        -- does not like apostrophes, yet Haskell programmers do.
+        -- We replace apostrophes with hyphens, because hyphens
+        -- are not valid in type variable names in Haskell.
+        encodeString =
+          map $ \c -> case c of
+            '\'' -> '-'
+            x   -> x
 
 
 
