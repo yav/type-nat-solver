@@ -2,7 +2,7 @@ module TypeNatSolver (plugin) where
 
 import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
-                 , getEqPredTys, mkTyConApp, mkNumLitTy, mkEqPred
+                 , getEqPredTys, mkTyConApp, mkNumLitTy, mkPrimEqPred
                  , typeKind, classifyPredType, PredTree(..), EqRel(..)
                  , getTyVar_maybe, getEqPredTys_maybe
                  )
@@ -26,7 +26,7 @@ import TcTypeNats ( typeNatAddTyCon
                   , typeNatLeqTyCon
                   )
 import TysWiredIn ( typeNatKindCon
-                  , promotedBoolTyCon
+                  , boolTyCon
                   , promotedFalseDataCon, promotedTrueDataCon
                   )
 import Pair       ( Pair(..) )
@@ -49,7 +49,7 @@ import qualified Control.Applicative as A
 import           SimpleSMT (SExpr,Value(..),Result(..))
 import qualified SimpleSMT as SMT
 
-import GHC.TcPluginM.Extra (newWanted, newGiven, newDerived)
+import GHC.TcPluginM.Extra (newWanted, newGiven, newDerived, evByFiat)
 
 plugin :: Plugin
 plugin = defaultPlugin { tcPlugin = Just . thePlugin }
@@ -674,8 +674,8 @@ knownKind :: Kind -> Maybe Ty
 knownKind k =
   case splitTyConApp_maybe k of
     Just (tc,[])
-      | tc == promotedBoolTyCon -> Just TBool
-      | tc == typeNatKindCon    -> Just TNat
+      | tc == boolTyCon      -> Just TBool
+      | tc == typeNatKindCon -> Just TNat
     _ -> Nothing
 
 
@@ -691,20 +691,7 @@ knownKind k =
 -- | Make a fake equality evidence for an equality.
 -- We just tag the evidence, so that we know who produced the evidence.
 evBy :: (Type,Type) -> EvTerm
-evBy (t1,t2) = EvCoercion $ mkTcAxiomRuleCo decisionProcedure [t1,t2] []
-
-  where name = "SMT"
-        decisionProcedure =
-           CoAxiomRule
-             { coaxrName      = fsLit name
-             , coaxrTypeArity = 2
-             , coaxrAsmpRoles = []
-             , coaxrRole      = Nominal
-             , coaxrProves    = \ts cs ->
-                 case (ts,cs) of
-                   ([s,t],[]) -> return (Pair s t)
-                   _          -> Nothing
-             }
+evBy (t1,t2) = evByFiat "SMT" t1 t2
 
 
 -- | Used when we generate new constraints.
@@ -715,7 +702,7 @@ mkNewFact newLoc withEv (t1,t2)
   | withEv = newGiven newLoc newPred (evBy (t1,t2))
   | otherwise = newDerived newLoc newPred
   where
-  newPred = mkEqPred t1 t2
+  newPred = mkPrimEqPred t1 t2
 
 
 
