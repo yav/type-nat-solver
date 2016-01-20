@@ -1,8 +1,15 @@
+{-# LANGUAGE CPP #-}
+
 module TypeNatSolver (plugin) where
 
 import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
-                 , getEqPredTys, mkTyConApp, mkNumLitTy, mkPrimEqPred
+                 , getEqPredTys, mkTyConApp, mkNumLitTy
+                 #if __GLASGOW_HASKELL__ <= 710
+                 , mkEqPred
+                 #else
+                 , mkPrimEqPred
+                 #endif
                  , typeKind, classifyPredType, PredTree(..), EqRel(..)
                  , getTyVar_maybe, getEqPredTys_maybe
                  )
@@ -26,7 +33,11 @@ import TcTypeNats ( typeNatAddTyCon
                   , typeNatLeqTyCon
                   )
 import TysWiredIn ( typeNatKindCon
+                  #if __GLASGOW_HASKELL__ <= 710
+                  , promotedBoolTyCon
+                  #else
                   , boolTyCon
+                  #endif
                   , promotedFalseDataCon, promotedTrueDataCon
                   )
 import Pair       ( Pair(..) )
@@ -50,6 +61,12 @@ import           SimpleSMT (SExpr,Value(..),Result(..))
 import qualified SimpleSMT as SMT
 
 import GHC.TcPluginM.Extra (newWanted, newGiven, newDerived, evByFiat)
+
+-- Forward compatibility with GHC 8.0 (some names changed):
+#if __GLASGOW_HASKELL__ > 710
+promotedBoolTyCon = boolTyCon
+mkEqPred = mkPrimEqPred
+#endif
 
 plugin :: Plugin
 plugin = defaultPlugin { tcPlugin = Just . thePlugin }
@@ -674,8 +691,8 @@ knownKind :: Kind -> Maybe Ty
 knownKind k =
   case splitTyConApp_maybe k of
     Just (tc,[])
-      | tc == boolTyCon      -> Just TBool
-      | tc == typeNatKindCon -> Just TNat
+      | tc == promotedBoolTyCon -> Just TBool
+      | tc == typeNatKindCon    -> Just TNat
     _ -> Nothing
 
 
@@ -702,7 +719,7 @@ mkNewFact newLoc withEv (t1,t2)
   | withEv = newGiven newLoc newPred (evBy (t1,t2))
   | otherwise = newDerived newLoc newPred
   where
-  newPred = mkPrimEqPred t1 t2
+  newPred = mkEqPred t1 t2
 
 
 
