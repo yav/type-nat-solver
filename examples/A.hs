@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
 module A where
 
 import GHC.TypeLits
@@ -19,6 +20,12 @@ data Vec :: Nat -> * -> * where
   Nil :: Vec 0 a
   Cons :: a -> Vec n a -> Vec (n + 1) a
 
+toList :: Vec n a -> [a]
+toList vec =
+  case vec of
+    Nil -> []
+    Cons x xs -> x : toList xs
+
 vecHead :: Vec (n + 1) a -> a
 vecHead (Cons x _) = x
 
@@ -30,7 +37,7 @@ append :: Vec m a -> Vec n a -> Vec (n + m) a
 append Nil ys = ys
 append (Cons x xs) ys = Cons x (append xs ys)
 
-reverse = go Nil
+vecReverse = go Nil
   where
   go :: Vec m a -> Vec n a -> Vec (m + n) a
   go xs Nil = xs
@@ -61,3 +68,15 @@ testLin xs = vecHead xs
 testLin :: (2 <= a) => Vec a Int -> Int
 testLin xs = vecMaximum xs
 -}
+
+
+class MkVec n where
+  aTestVec :: a -> Vec n a
+
+instance MkVec 0 where
+  aTestVec _ = Nil
+
+instance {-# OVERLAPS #-} (MkVec prev, (prev + 1) ~ n) => MkVec n where
+  aTestVec a = Cons a (aTestVec a)
+
+
