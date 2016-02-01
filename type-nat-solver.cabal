@@ -11,7 +11,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     TypeNatSolver
-  build-depends:       base, containers, ghc, simple-smt >= 0.5.4
+  build-depends:       base, containers, ghc, simple-smt >= 0.5.4, ghc-tcplugins-extra >= 0.1
   default-language:    Haskell2010
   GHC-options:         -Wall -O2
 
