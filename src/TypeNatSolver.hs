@@ -5,11 +5,11 @@ module TypeNatSolver (plugin) where
 import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
                  , getEqPredTys, mkTyConApp, mkNumLitTy
-                 #if __GLASGOW_HASKELL__ <= 710
+#if __GLASGOW_HASKELL__ <= 710
                  , mkEqPred
-                 #else
+#else
                  , mkPrimEqPred
-                 #endif
+#endif
                  , typeKind, classifyPredType, PredTree(..), EqRel(..)
                  , getTyVar_maybe, getEqPredTys_maybe
                  )
@@ -33,11 +33,11 @@ import TcTypeNats ( typeNatAddTyCon
                   , typeNatLeqTyCon
                   )
 import TysWiredIn ( typeNatKindCon
-                  #if __GLASGOW_HASKELL__ <= 710
+#if __GLASGOW_HASKELL__ <= 710
                   , promotedBoolTyCon
-                  #else
+#else
                   , boolTyCon
-                  #endif
+#endif
                   , promotedFalseDataCon, promotedTrueDataCon
                   )
 import Pair       ( Pair(..) )
