@@ -2,7 +2,7 @@
 
 module TypeNatSolver (plugin) where
 
-import Type      ( PredType, Type, Kind, TyVar, eqType
+import Type      ( Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
                  , getEqPredTys, mkTyConApp, mkNumLitTy
 #if __GLASGOW_HASKELL__ <= 710
@@ -14,8 +14,8 @@ import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, getEqPredTys_maybe
                  )
 import TyCon     ( TyCon )
-import TcEvidence ( EvTerm(..), mkTcAxiomRuleCo )
-import CoAxiom   ( Role(..), CoAxiomRule(..) )
+import TcEvidence ( EvTerm(..) )
+import CoAxiom   ( Role(..) )
 import Name      ( nameOccName, nameUnique )
 import OccName   ( occNameString )
 import Var       ( tyVarName )
@@ -40,15 +40,12 @@ import TysWiredIn ( typeNatKindCon
 #endif
                   , promotedFalseDataCon, promotedTrueDataCon
                   )
-import Pair       ( Pair(..) )
-import FastString ( fsLit )
 import TrieMap    ( TypeMap, emptyTypeMap, lookupTypeMap, extendTypeMap )
 
 import Outputable
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, writeIORef
                             , modifyIORef', atomicModifyIORef' )
@@ -60,11 +57,13 @@ import qualified Control.Applicative as A
 import           SimpleSMT (SExpr,Value(..),Result(..))
 import qualified SimpleSMT as SMT
 
-import GHC.TcPluginM.Extra (newWanted, newGiven, newDerived, evByFiat)
+import GHC.TcPluginM.Extra (newGiven, newDerived, evByFiat)
 
 -- Forward compatibility with GHC 8.0 (some names changed):
 #if __GLASGOW_HASKELL__ > 710
+promotedBoolTyCon :: TyCon
 promotedBoolTyCon = boolTyCon
+mkEqPred :: Type -> Type -> Type
 mkEqPred = mkPrimEqPred
 #endif
 
@@ -82,14 +81,14 @@ quiet :: Int
 quiet = 1
 
 pluginInit :: [CommandLineOption] -> TcPluginM S
-pluginInit opts = tcPluginIO $
+pluginInit _opts = tcPluginIO $
   do -- XXX: Use `opts`
      let {- exe  = "cvc4"
          opts = [ "--incremental", "--lang=smtlib2" ] -}
          exe = "z3"
-         opts = [ "-smt2", "-in" ]
+         solver_opts = [ "-smt2", "-in" ]
      doLog <- SMT.newLogger quiet
-     proc  <- SMT.newSolver exe opts (Just doLog)
+     proc  <- SMT.newSolver exe solver_opts (Just doLog)
 
      SMT.setLogic proc "QF_LIA"
 
@@ -216,15 +215,13 @@ makeEqVars cts = \tv -> Map.findWithDefault tv tv repMap
   where
   repMap = snd (foldr addCt (Map.empty, Map.empty) cts)
 
-  ordVar (x,y) = if x <= y then (x,y) else (y,x)
-
   addCt ct (m,repFor) =
     case isVarEq ct of
       Nothing -> (m,repFor)
       Just (a,b) ->
         case (Map.lookup a repFor, Map.lookup b repFor) of
           (Just r1, Just r2)
-             | r1 == r2     -> ( m,repFor)
+             | r1 == r2     -> (m,repFor)
              | otherwise    ->
                let bs = m Map.! b   -- inludes r2
                in ( Map.adjust (Set.union bs) r1 (Map.delete r2 m)
@@ -939,8 +936,8 @@ thyVarName x = encodeString (occNameString (nameOccName n)) ++ "_" ++ show u
         -- are not valid in type variable names in Haskell.
         encodeString =
           map $ \c -> case c of
-            '\'' -> '-'
-            x   -> x
+            '\''  -> '-'
+            other -> other
 
 
 
