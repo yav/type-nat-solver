@@ -218,25 +218,25 @@ makeEqVars cts = \tv -> Map.findWithDefault tv tv repMap
   addCt ct (m,repFor) =
     case isVarEq ct of
       Nothing -> (m,repFor)
-      Just (a,b) ->
-        case (Map.lookup a repFor, Map.lookup b repFor) of
+      Just (tv1,tv2) ->
+        case (Map.lookup tv1 repFor, Map.lookup tv2 repFor) of
           (Just r1, Just r2)
              | r1 == r2     -> (m,repFor)
              | otherwise    ->
-               let bs = m Map.! b   -- inludes r2
+               let bs = m Map.! tv2   -- inludes r2
                in ( Map.adjust (Set.union bs) r1 (Map.delete r2 m)
                   , foldr (\b r' -> Map.insert b r1 r') repFor (Set.toList bs)
                   )
 
-          (Nothing, Just r) -> ( Map.insertWith Set.union r (Set.singleton a) m
-                               , Map.insert a r repFor
+          (Nothing, Just r) -> ( Map.insertWith Set.union r (Set.singleton tv1) m
+                               , Map.insert tv1 r repFor
                                )
 
-          (Just r, Nothing) -> ( Map.insertWith Set.union r (Set.singleton b) m
-                               , Map.insert b r repFor
+          (Just r, Nothing) -> ( Map.insertWith Set.union r (Set.singleton tv2) m
+                               , Map.insert tv2 r repFor
                                )
-          (Nothing, Nothing) -> ( Map.insert a (Set.fromList [a,b]) m
-                                , Map.insert b a (Map.insert a a repFor)
+          (Nothing, Nothing) -> ( Map.insert tv1 (Set.fromList [tv1,tv2]) m
+                                , Map.insert tv2 tv1 (Map.insert tv1 tv1 repFor)
                                 )
 
 
