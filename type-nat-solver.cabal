@@ -16,7 +16,8 @@ library
   GHC-options:         -Wall -O2
 
 Test-Suite test-type-nat-solver
-  type: exitcode-stdio-1.0
+  type:                exitcode-stdio-1.0
   hs-source-dirs:      examples
-  main-is: A.hs
-  build-depends: base, type-nat-solver == 0.1.0.0
+  main-is:             A.hs
+  build-depends:       base, type-nat-solver
+  default-language:    Haskell2010
