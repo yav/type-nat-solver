@@ -331,13 +331,13 @@ we identify a sub-set that is the real cause of the problem.
 * Assumes that the variables in our constarints have been declared.
 * Does not change the assertions in the solver.
 -}
-solverFindContraidction ::
-  S ->
-  [Ct] ->               -- ^ Constraints not relevant to us
-  [(Ct,SExpr)] ->       -- ^ Our constraints
-  TcPluginM (Maybe ( [Ct]      -- Constraints that cause a contradiciotn
-                   , [Ct]      -- All other constraints (both others and ours)
-                   ))
+solverFindContraidction
+  :: S
+  -> [Ct]               -- ^ Constraints not relevant to us
+  -> [(Ct,SExpr)]       -- ^ Our constraints
+  ->  TcPluginM (Maybe ( [Ct]      -- Constraints that cause a contradiciotn
+                       , [Ct]      -- All other constraints (both others and ours)
+                       ))
 solverFindContraidction s others ours =
   do solverPush s -- scope for `needed`
      minimize others [] ours
