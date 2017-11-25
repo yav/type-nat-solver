@@ -585,13 +585,13 @@ type NewVarDecls  = Map String (Type,Ty)
 
 
 instance Monad ImportM where
- return a     = Imp (\s -> (a, s, Map.empty))
- fail err     = panic err
- Imp m >>= k  = Imp (\s -> let (a,s1,ds1) = m s
-                               Imp m1     = k a
-                               (b,s2,ds2) = m1 s1
-                               ds3        = Map.union ds1 ds2
-                           in ds3 `seq` (b, s2, ds3))
+  return a     = Imp (\s -> (a, s, Map.empty))
+  fail err     = panic err
+  Imp m >>= k  = Imp (\s -> let (a,s1,ds1) = m s
+                                Imp m1     = k a
+                                (b,s2,ds2) = m1 s1
+                                ds3        = Map.union ds1 ds2
+                            in ds3 `seq` (b, s2, ds3))
 
 instance Functor ImportM where
   fmap = liftM
