@@ -1,0 +1,9 @@
+# SMT-driven typechecking for naturals and booleans
+
+This is a typechecker plugin for GHC using an SMT solver to resolve constraints
+on booleans and natural numbers.
+
+## Usage
+
+Add `type-nat-solver` to your `build-depends` list and `-fplugin TypeNatSolver`
+to `ghc-options`.

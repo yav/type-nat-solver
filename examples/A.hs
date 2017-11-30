@@ -5,7 +5,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
-module A where
 
 import GHC.TypeLits
 import Data.Proxy
@@ -80,3 +79,6 @@ instance {-# OVERLAPS #-} (MkVec prev, (prev + 1) ~ n) => MkVec n where
   aTestVec a = Cons a (aTestVec a)
 
 
+-- This is really a compile-time test.
+main :: IO ()
+main = return ()

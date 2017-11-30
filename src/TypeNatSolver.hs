@@ -2,7 +2,7 @@
 
 module TypeNatSolver (plugin) where
 
-import Type      ( PredType, Type, Kind, TyVar, eqType
+import Type      ( Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
                  , getEqPredTys, mkTyConApp, mkNumLitTy
 #if __GLASGOW_HASKELL__ <= 710
@@ -14,8 +14,8 @@ import Type      ( PredType, Type, Kind, TyVar, eqType
                  , getTyVar_maybe, getEqPredTys_maybe
                  )
 import TyCon     ( TyCon )
-import TcEvidence ( EvTerm(..), mkTcAxiomRuleCo )
-import CoAxiom   ( Role(..), CoAxiomRule(..) )
+import TcEvidence ( EvTerm(..) )
+import CoAxiom   ( Role(..) )
 import Name      ( nameOccName, nameUnique )
 import OccName   ( occNameString )
 import Var       ( tyVarName )
@@ -40,15 +40,12 @@ import TysWiredIn ( typeNatKindCon
 #endif
                   , promotedFalseDataCon, promotedTrueDataCon
                   )
-import Pair       ( Pair(..) )
-import FastString ( fsLit )
 import TrieMap    ( TypeMap, emptyTypeMap, lookupTypeMap, extendTypeMap )
 
 import Outputable
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, writeIORef
                             , modifyIORef', atomicModifyIORef' )
@@ -60,11 +57,13 @@ import qualified Control.Applicative as A
 import           SimpleSMT (SExpr,Value(..),Result(..))
 import qualified SimpleSMT as SMT
 
-import GHC.TcPluginM.Extra (newWanted, newGiven, newDerived, evByFiat)
+import GHC.TcPluginM.Extra (newGiven, newDerived, evByFiat)
 
 -- Forward compatibility with GHC 8.0 (some names changed):
 #if __GLASGOW_HASKELL__ > 710
+promotedBoolTyCon :: TyCon
 promotedBoolTyCon = boolTyCon
+mkEqPred :: Type -> Type -> Type
 mkEqPred = mkPrimEqPred
 #endif
 
@@ -82,14 +81,14 @@ quiet :: Int
 quiet = 1
 
 pluginInit :: [CommandLineOption] -> TcPluginM S
-pluginInit opts = tcPluginIO $
+pluginInit _opts = tcPluginIO $
   do -- XXX: Use `opts`
      let {- exe  = "cvc4"
          opts = [ "--incremental", "--lang=smtlib2" ] -}
          exe = "z3"
-         opts = [ "-smt2", "-in" ]
+         solver_opts = [ "-smt2", "-in" ]
      doLog <- SMT.newLogger quiet
-     proc  <- SMT.newSolver exe opts (Just doLog)
+     proc  <- SMT.newSolver exe solver_opts (Just doLog)
 
      SMT.setLogic proc "QF_LIA"
 
@@ -216,30 +215,28 @@ makeEqVars cts = \tv -> Map.findWithDefault tv tv repMap
   where
   repMap = snd (foldr addCt (Map.empty, Map.empty) cts)
 
-  ordVar (x,y) = if x <= y then (x,y) else (y,x)
-
   addCt ct (m,repFor) =
     case isVarEq ct of
       Nothing -> (m,repFor)
-      Just (a,b) ->
-        case (Map.lookup a repFor, Map.lookup b repFor) of
+      Just (tv1,tv2) ->
+        case (Map.lookup tv1 repFor, Map.lookup tv2 repFor) of
           (Just r1, Just r2)
-             | r1 == r2     -> ( m,repFor)
+             | r1 == r2     -> (m,repFor)
              | otherwise    ->
-               let bs = m Map.! b   -- inludes r2
+               let bs = m Map.! tv2   -- inludes r2
                in ( Map.adjust (Set.union bs) r1 (Map.delete r2 m)
                   , foldr (\b r' -> Map.insert b r1 r') repFor (Set.toList bs)
                   )
 
-          (Nothing, Just r) -> ( Map.insertWith Set.union r (Set.singleton a) m
-                               , Map.insert a r repFor
+          (Nothing, Just r) -> ( Map.insertWith Set.union r (Set.singleton tv1) m
+                               , Map.insert tv1 r repFor
                                )
 
-          (Just r, Nothing) -> ( Map.insertWith Set.union r (Set.singleton b) m
-                               , Map.insert b r repFor
+          (Just r, Nothing) -> ( Map.insertWith Set.union r (Set.singleton tv2) m
+                               , Map.insert tv2 r repFor
                                )
-          (Nothing, Nothing) -> ( Map.insert a (Set.fromList [a,b]) m
-                                , Map.insert b a (Map.insert a a repFor)
+          (Nothing, Nothing) -> ( Map.insert tv1 (Set.fromList [tv1,tv2]) m
+                                , Map.insert tv2 tv1 (Map.insert tv1 tv1 repFor)
                                 )
 
 
@@ -334,13 +331,13 @@ we identify a sub-set that is the real cause of the problem.
 * Assumes that the variables in our constarints have been declared.
 * Does not change the assertions in the solver.
 -}
-solverFindContraidction ::
-  S ->
-  [Ct] ->               -- ^ Constraints not relevant to us
-  [(Ct,SExpr)] ->       -- ^ Our constraints
-  TcPluginM (Maybe ( [Ct]      -- Constraints that cause a contradiciotn
-                   , [Ct]      -- All other constraints (both others and ours)
-                   ))
+solverFindContraidction
+  :: S
+  -> [Ct]               -- ^ Constraints not relevant to us
+  -> [(Ct,SExpr)]       -- ^ Our constraints
+  ->  TcPluginM (Maybe ( [Ct]      -- Constraints that cause a contradiciotn
+                       , [Ct]      -- All other constraints (both others and ours)
+                       ))
 solverFindContraidction s others ours =
   do solverPush s -- scope for `needed`
      minimize others [] ours
@@ -588,13 +585,13 @@ type NewVarDecls  = Map String (Type,Ty)
 
 
 instance Monad ImportM where
- return a     = Imp (\s -> (a, s, Map.empty))
- fail err     = panic err
- Imp m >>= k  = Imp (\s -> let (a,s1,ds1) = m s
-                               Imp m1     = k a
-                               (b,s2,ds2) = m1 s1
-                               ds3        = Map.union ds1 ds2
-                           in ds3 `seq` (b, s2, ds3))
+  return a     = Imp (\s -> (a, s, Map.empty))
+  fail err     = panic err
+  Imp m >>= k  = Imp (\s -> let (a,s1,ds1) = m s
+                                Imp m1     = k a
+                                (b,s2,ds2) = m1 s1
+                                ds3        = Map.union ds1 ds2
+                            in ds3 `seq` (b, s2, ds3))
 
 instance Functor ImportM where
   fmap = liftM
@@ -939,8 +936,8 @@ thyVarName x = encodeString (occNameString (nameOccName n)) ++ "_" ++ show u
         -- are not valid in type variable names in Haskell.
         encodeString =
           map $ \c -> case c of
-            '\'' -> '-'
-            x   -> x
+            '\''  -> '-'
+            other -> other
 
 
 
