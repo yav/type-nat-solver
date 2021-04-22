@@ -4,14 +4,13 @@ module TypeNatSolver (plugin) where
 
 import Type      ( Type, Kind, TyVar, eqType
                  , getTyVar_maybe, isNumLitTy, splitTyConApp_maybe
-                 , getEqPredTys, mkTyConApp, mkNumLitTy
-#if __GLASGOW_HASKELL__ <= 710
-                 , mkEqPred
-#else
-                 , mkPrimEqPred
-#endif
-                 , typeKind, classifyPredType, PredTree(..), EqRel(..)
-                 , getTyVar_maybe, getEqPredTys_maybe
+                 , mkTyConApp, mkNumLitTy
+                 , typeKind
+                 , getTyVar_maybe
+                 )
+import Predicate ( getEqPredTys, getEqPredTys_maybe
+                 , mkPrimEqPred, classifyPredType
+                 , Pred(..), EqRel(..)
                  )
 import TyCon     ( TyCon )
 import TcEvidence ( EvTerm(..) )
@@ -21,10 +20,10 @@ import OccName   ( occNameString )
 import Var       ( tyVarName )
 import TcPluginM ( TcPluginM, tcPluginIO, tcPluginTrace )
 import TcRnMonad ( TcPlugin(..), TcPluginResult(..)
-                 , Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
-                 , mkNonCanonical, isTouchableTcM, unsafeTcPluginTcM
-                 )
-import TcRnTypes ( isDerivedCt )
+                 , isTouchableTcM, unsafeTcPluginTcM )
+import Constraint ( Ct(..), CtEvidence(..), CtLoc, ctLoc, ctPred
+                  , mkNonCanonical, isDerivedCt
+                  )
 import Plugins    ( CommandLineOption, defaultPlugin, Plugin(..) )
 
 import TcTypeNats ( typeNatAddTyCon
@@ -33,14 +32,10 @@ import TcTypeNats ( typeNatAddTyCon
                   , typeNatLeqTyCon
                   )
 import TysWiredIn ( typeNatKindCon
-#if __GLASGOW_HASKELL__ <= 710
-                  , promotedBoolTyCon
-#else
                   , boolTyCon
-#endif
                   , promotedFalseDataCon, promotedTrueDataCon
                   )
-import TrieMap    ( TypeMap, emptyTypeMap, lookupTypeMap, extendTypeMap )
+import CoreMap    ( TypeMap, emptyTypeMap, lookupTypeMap, extendTypeMap )
 
 import Outputable
 
@@ -586,7 +581,6 @@ type NewVarDecls  = Map String (Type,Ty)
 
 instance Monad ImportM where
   return a     = Imp (\s -> (a, s, Map.empty))
-  fail err     = panic err
   Imp m >>= k  = Imp (\s -> let (a,s1,ds1) = m s
                                 Imp m1     = k a
                                 (b,s2,ds2) = m1 s1
